@@ -3,5 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="Poetry (bolletta_storage_agents)" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="Poetry (bolletta_storage_agents)" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="Poetry (bolletta_storage_agent)" project-jdk-type="Python SDK" />
 </project>
