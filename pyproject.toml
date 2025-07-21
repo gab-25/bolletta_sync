@@ -1,5 +1,5 @@
 [project]
-name = "bolletta-storage-agent"
+name = "my-agent"
 version = "0.1.0"
 description = ""
 authors = [
