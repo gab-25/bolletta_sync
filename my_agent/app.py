@@ -10,7 +10,7 @@ def llm_request():
 
     data = dict(request.json)
     response = execute(data.get("request"))
-    return response
+    return {"request": data.get("request"), "response": response}
 
 
 if __name__ == "__main__":
