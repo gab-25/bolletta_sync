@@ -13,6 +13,7 @@ dependencies = [
     "langchain-google-genai (>=2.1.9,<3.0.0)",
     "langgraph (>=0.6.4,<0.7.0)",
     "requests (>=2.32.4,<3.0.0)",
+    "flask (>=3.1.1,<4.0.0)",
     "python-dotenv (>=1.1.1,<2.0.0)"
 ]
 
@@ -20,7 +21,4 @@ dependencies = [
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
-
-[tool.poetry.group.dev.dependencies]
-python-dotenv = "^1.1.1"
 
