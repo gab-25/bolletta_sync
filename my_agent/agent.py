@@ -22,6 +22,9 @@ agent_executor = create_react_agent(llm, tools)
 
 
 def execute(request: str) -> str:
+    """
+    execute a request using the agent.
+    """
     result = agent_executor.invoke(
         {"messages": [SystemMessage(SYSTEM_PROMPT), HumanMessage(f"{request}")]}
     )
