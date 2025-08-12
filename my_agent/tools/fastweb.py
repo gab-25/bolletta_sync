@@ -1,5 +1,5 @@
-import requests
 import os
+import requests
 from langchain.tools import tool
 from bs4 import BeautifulSoup
 
@@ -28,38 +28,62 @@ def _login_fastweb():
         "https://fastweb.it/myfastweb/accesso/login/ajax/",
         data=payload,
     )
-    print(response.text)
     response_body = dict(response.json())
     if response_body.get("errorCode") != 0:
         raise Exception("login failed")
 
 
+def _check_profile(client_code: str):
+    response = _session.get("https://fastweb.it/myfastweb/")
+    if response.url.startswith(
+        "https://fastweb.it/myfastweb/accesso/seleziona-codice-cliente/"
+    ):
+        response = _session.post(
+            "https://fastweb.it/myfastweb/accesso/profile/", {"account": client_code}
+        )
+        if response.url != "https://fastweb.it/myfastweb/":
+            raise Exception("invalid client code")
+
+
 # @tool
-def get_invoces_fastweb() -> list[str]:
+def get_invoices_fastweb(client_code: str) -> list[dict]:
     """
-    return a list of invoces from fastweb
+    return a list of invoices from fastweb
     """
     if _session.cookies.get("PHPSESSID") is None:
         _login_fastweb()
 
+    _check_profile(client_code)
+
     response = _session.get("https://fastweb.it/myfastweb/abbonamento/le-mie-fatture/")
     soup = BeautifulSoup(response.text, "html.parser")
 
-    invoces = []
+    security_token = soup.find("input", {"name": "securityToken"}).get("value")
+    payload = {"action": "loadInvoiceList", "securityToken": security_token}
+    response = _session.post(
+        "https://fastweb.it/myfastweb/abbonamento/le-mie-fatture/ajax/index.php",
+        payload,
+        params={"action": "loadInvoiceList"},
+    )
 
-    return invoces
+    invoices = dict(response.json()).get("invoiceList", [])
+
+    return invoices
 
 
 @tool
-def get_invoce_fastweb(id: str) -> str:
+def get_invoice_fastweb(client_code: str, invoice_id: str) -> dict:
     """
-    return the invoces with the given id from fastweb
+    return the invoices with the given id from fastweb
     """
-    _login_fastweb()
-    invoce = ""
+    invoices = get_invoices_fastweb(client_code)
 
-    return invoce
+    try:
+        invoice = list(filter(lambda inv: inv.get("id") == invoice_id, invoices))[0]
+        return invoice
+    except IndexError:
+        raise Exception("invoice not found")
 
 
 if __name__ == "__main__":
-    print(get_invoces_fastweb())
+    print(get_invoices_fastweb("11477472"))

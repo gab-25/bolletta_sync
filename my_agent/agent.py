@@ -2,7 +2,7 @@ from langchain.globals import set_debug
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.prebuilt import create_react_agent
-from .tools.fastweb import get_invoces_fastweb, get_invoce_fastweb
+from .tools.fastweb import get_invoices_fastweb, get_invoice_fastweb
 
 
 SYSTEM_PROMPT = """
@@ -17,7 +17,7 @@ Hai a disposizione i seguenti tool per ogni gestore:
 set_debug(True)
 
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
-tools = [get_invoces_fastweb, get_invoce_fastweb]
+tools = [get_invoices_fastweb, get_invoice_fastweb]
 agent_executor = create_react_agent(llm, tools)
 
 
