@@ -1,0 +1,6 @@
+services:
+  my_agent:
+    container_name: my_agent
+    build: .
+    ports:
+      - 5000:5000
