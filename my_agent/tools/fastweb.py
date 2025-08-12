@@ -4,18 +4,15 @@ from langchain.tools import tool
 from bs4 import BeautifulSoup
 
 _session = requests.Session()
-_security_token = None
 
 
 def _login_fastweb():
-    global _session, _security_token
-
     response = _session.get("https://fastweb.it/myfastweb/accesso/login/")
-    soap = BeautifulSoup(response.text)
+    soup = BeautifulSoup(response.text, "html.parser")
 
-    _security_token = soap.find("input", {"name": "securityToken"}).get("value")
+    security_token = soup.find("input", {"name": "securityToken"}).get("value")
     payload = {
-        "securityToken": _security_token,
+        "securityToken": security_token,
         "request_id": "",
         "PersistentLogin": "",
         "OAM_REQ": "",
@@ -31,6 +28,7 @@ def _login_fastweb():
         "https://fastweb.it/myfastweb/accesso/login/ajax/",
         data=payload,
     )
+    print(response.text)
     response_body = dict(response.json())
     if response_body.get("errorCode") != 0:
         raise Exception("login failed")
@@ -41,15 +39,12 @@ def get_invoces_fastweb() -> list[str]:
     """
     return a list of invoces from fastweb
     """
-    global _session, _security_token
     if _session.cookies.get("PHPSESSID") is None:
         _login_fastweb()
 
-    payload = {"action": "loadInvoiceList", "securityToken": _security_token}
-    response = _session.post(
-        "https://fastweb.it/myfastweb/abbonamento/le-mie-fatture/ajax/index.php",
-        params={"action": "loadInvoiceList"},
-    )
+    response = _session.get("https://fastweb.it/myfastweb/abbonamento/le-mie-fatture/")
+    soup = BeautifulSoup(response.text, "html.parser")
+
     invoces = []
 
     return invoces
