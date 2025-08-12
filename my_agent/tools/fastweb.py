@@ -45,8 +45,8 @@ def _check_profile(client_code: str):
             raise Exception("invalid client code")
 
 
-# @tool
-def get_invoices_fastweb(client_code: str) -> list[dict]:
+@tool
+def get_invoices_fastweb(client_code: str) -> list[str]:
     """
     return a list of invoices from fastweb
     """
@@ -66,24 +66,28 @@ def get_invoices_fastweb(client_code: str) -> list[dict]:
         params={"action": "loadInvoiceList"},
     )
 
-    invoices = dict(response.json()).get("invoiceList", [])
+    invoices = list(dict(response.json()).get("invoiceList", []))
 
-    return invoices
+    return list(
+        map(
+            lambda inv: (
+                f"numero fattura: {inv.get('NumDoc')}, scadenza: {inv.get('DocExpireDateDMY')}, "
+                f"importo: {inv.get('DocAmountFormatted')}, stato: {inv.get('InvoiceTechStatus')}"
+            ),
+            invoices,
+        )
+    )
 
 
 @tool
-def get_invoice_fastweb(client_code: str, invoice_id: str) -> dict:
+def get_invoice_fastweb(client_code: str, invoice_id: str) -> str:
     """
     return the invoices with the given id from fastweb
     """
     invoices = get_invoices_fastweb(client_code)
 
     try:
-        invoice = list(filter(lambda inv: inv.get("id") == invoice_id, invoices))[0]
+        invoice = list(filter(lambda inv: inv.find(invoice_id) != -1, invoices))[0]
         return invoice
     except IndexError:
         raise Exception("invoice not found")
-
-
-if __name__ == "__main__":
-    print(get_invoices_fastweb("11477472"))
