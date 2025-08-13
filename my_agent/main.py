@@ -21,12 +21,16 @@ def llm_request():
     from .agent import execute
 
     if request.method == "POST":
-        input = dict(request.json).get("input")
-        message = execute(input)
-        topic_chat.publish(json.dumps({"input": input, "message": message}))
+        input_str = dict(request.json).get("input")
+        message = execute(input_str)
+        publisher.publish(
+            topic_chat,
+            json.dumps({"input": input_str, "message": message}).encode("utf-8"),
+        )
         return ""
 
-    return execute(request.args.get("input"))
+    input_str = request.args.get("input")
+    return execute(input_str)
 
 
 if __name__ == "__main__":
