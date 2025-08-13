@@ -16,16 +16,16 @@ Hai a disposizione i seguenti tool per ogni gestore:
 
 set_debug(True)
 
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
-tools = [get_invoices_fastweb, get_invoice_fastweb]
-agent_executor = create_react_agent(llm, tools)
 
-
-def execute(request: str) -> str:
+def execute(user_message: str) -> str:
     """
     execute a request using the agent.
     """
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+    tools = [get_invoices_fastweb, get_invoice_fastweb]
+    agent_executor = create_react_agent(llm, tools)
+
     result = agent_executor.invoke(
-        {"messages": [SystemMessage(SYSTEM_PROMPT), HumanMessage(f"{request}")]}
+        {"messages": [SystemMessage(SYSTEM_PROMPT), HumanMessage(f"{user_message}")]}
     )
     return result.get("messages")[-1].content
