@@ -1,6 +1,6 @@
 services:
-  bolletta_agent:
-    container_name: bolletta_agent
+  bolletta_sync:
+    container_name: bolletta_sync
     build: .
     ports:
-      - 5000:5000
+      - "5000:5000"

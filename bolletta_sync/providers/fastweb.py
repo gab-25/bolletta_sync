@@ -1,7 +1,13 @@
 import os
 import requests
-from langchain.tools import tool
 from bs4 import BeautifulSoup
+
+from bolletta_sync.providers.base_provider import BaseProvider
+
+
+class Fastweb(BaseProvider):
+    pass
+
 
 _session = requests.Session()
 
@@ -36,7 +42,7 @@ def _login_fastweb():
 def _check_profile(client_code: str):
     response = _session.get("https://fastweb.it/myfastweb/")
     if response.url.startswith(
-        "https://fastweb.it/myfastweb/accesso/seleziona-codice-cliente/"
+            "https://fastweb.it/myfastweb/accesso/seleziona-codice-cliente/"
     ):
         response = _session.post(
             "https://fastweb.it/myfastweb/accesso/profile/", {"account": client_code}

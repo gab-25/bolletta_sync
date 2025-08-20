@@ -5,6 +5,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-COPY bolletta_agent ./bolletta_agent
+COPY bolletta_sync ./bolletta_sync
 
-CMD ["python", "-m", "bolletta_agent.main"]
+CMD ["python", "-m", "bolletta_sync.main"]

@@ -1,6 +1,5 @@
 import os
 from flask import Flask, request, jsonify
-from .agent import execute
 
 app = Flask(__name__)
 
@@ -15,15 +14,10 @@ def api_key_required(f):
     return wrapper
 
 
-@app.route("/invoke", methods=["POST"])
+@app.route("/sync", methods=["GET"])
 @api_key_required
-def invoke():
-    input_user = dict(request.json).get("message")
-    if input_user is None:
-        return "No message provided", 400
-
-    output_agent = execute(input_user)
-    return jsonify({"user": input_user, "agent": output_agent}), 200
+def sync():
+    pass
 
 
 if __name__ == "__main__":
