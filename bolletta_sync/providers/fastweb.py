@@ -1,23 +1,24 @@
 import logging
 import os
+from datetime import date
 
 import requests
 from bs4 import BeautifulSoup
 
-from bolletta_sync.providers.base_provider import BaseProvider
+from bolletta_sync.providers.base_provider import BaseProvider, Invoice
 
 logger = logging.getLogger(__name__)
 
 
 class Fastweb(BaseProvider):
-    _session = requests.Session()
-
     def __init__(self):
         if os.getenv("FASTWEB_CLIENT_CODE") is None:
             raise Exception("FASTWEB_CLIENT_CODE not set")
         self.client_codes = os.getenv("FASTWEB_CLIENT_CODE").split(",")
+        self._session = requests.Session()
 
-    def _login_fastweb(self):
+    async def _login_fastweb(self):
+        self._session.cookies.clear()
         response = self._session.get("https://fastweb.it/myfastweb/accesso/login/")
         soup = BeautifulSoup(response.text, "html.parser")
 
@@ -43,7 +44,7 @@ class Fastweb(BaseProvider):
         if response_body.get("errorCode") != 0:
             raise Exception("login failed")
 
-    def _check_profile(self, client_code: str):
+    async def _select_profile(self, client_code: str):
         response = self._session.get("https://fastweb.it/myfastweb/")
         if response.url.startswith(
                 "https://fastweb.it/myfastweb/accesso/seleziona-codice-cliente/"
@@ -53,17 +54,17 @@ class Fastweb(BaseProvider):
             )
             if response.url != "https://fastweb.it/myfastweb/":
                 raise Exception("invalid client code")
+        else:
+            raise Exception("profile not selected")
 
-    def get_invoices(self) -> dict:
-        if self._session.cookies.get("PHPSESSID") is None:
-            logger.info("logging in fastweb")
-            self._login_fastweb()
-
-        invoices = {}
+    async def get_invoices(self, start_date: date, end_date: date):
+        invoices: list[Invoice] = []
 
         for client_code in self.client_codes:
+            await self._login_fastweb()
+
             logger.info(f"getting invoices for client {client_code}")
-            self._check_profile(client_code)
+            await self._select_profile(client_code)
 
             response = self._session.get("https://fastweb.it/myfastweb/abbonamento/le-mie-fatture/")
             soup = BeautifulSoup(response.text, "html.parser")
@@ -76,8 +77,9 @@ class Fastweb(BaseProvider):
                 params={"action": "loadInvoiceList"},
             )
 
-            invoice_list: list[dict] = response.json().get("invoiceList", [])
-            logger.info(f"got {len(invoice_list)} invoices")
-            invoices[client_code] = invoice_list
+            invoice_list = list(
+                map(lambda i: Invoice(id=i["NumDoc"], doc_date=i["DocDateYMD"], due_date=i["DocExpireDateYMD"],
+                                      amount=i["DocAmount"]), response.json().get("invoiceList", [])))
+            invoices.append(*filter(lambda invoice: start_date <= invoice.doc_date <= end_date, invoice_list))
 
         return invoices

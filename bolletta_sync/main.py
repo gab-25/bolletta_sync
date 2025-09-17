@@ -1,6 +1,6 @@
 import logging
 import os
-from datetime import date
+from datetime import date, timedelta
 from enum import Enum
 
 from dotenv import load_dotenv
@@ -10,7 +10,10 @@ from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 from starlette import status
 
+from bolletta_sync.providers.eni import Eni
 from bolletta_sync.providers.fastweb import Fastweb
+from bolletta_sync.providers.fastweb_energia import FastwebEnergia
+from bolletta_sync.providers.umbra_acque import UmbraAcque
 
 load_dotenv()
 
@@ -20,6 +23,8 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -46,13 +51,44 @@ class Provider(Enum):
 
 class SyncParams(BaseModel):
     providers: list[Provider] = None
-    date_start: date = None
-    date_end: date = None
+    start_date: date = None
+    end_date: date = None
 
 
 @router.post("/sync")
 async def sync(sync_params: SyncParams):
-    return Fastweb().get_invoices()
+    if sync_params.providers is None:
+        sync_params.providers = list(Provider)
+    if sync_params.start_date is None:
+        sync_params.start_date = date.today().replace(day=1)
+    if sync_params.end_date is None:
+        sync_params.end_date = (sync_params.start_date + timedelta(days=31)).replace(day=1)
+
+    logger.info(f"Syncing invoices from {sync_params.start_date} to {sync_params.end_date}")
+
+    for provider in sync_params.providers:
+        instance = None
+
+        if provider == Provider.FASTWEB:
+            instance = Fastweb()
+        elif provider == Provider.FASTEWEB_ENERGIA:
+            instance = FastwebEnergia()
+        elif provider == Provider.ENI:
+            instance = Eni()
+        elif provider == Provider.UMBRA_ACQUE:
+            instance = UmbraAcque()
+
+        if instance is None:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unknown provider")
+
+        try:
+            logger.info(f"Syncing invoices from {provider.value}")
+            invoces = await instance.get_invoices(sync_params.start_date, sync_params.end_date)
+            for invoce in invoces:
+                doc = await instance.download_invoice(invoce.id)
+                await instance.save_invoice(invoce, doc)
+        except Exception as e:
+            logger.error(f"Error while syncing with {provider.value}: {e}")
 
 
 app.include_router(router)
