@@ -1,24 +1,58 @@
+import logging
 import os
-from flask import Flask, request, jsonify
+from datetime import date
+from enum import Enum
 
-app = Flask(__name__)
+from dotenv import load_dotenv
+from fastapi import FastAPI, Security, HTTPException, APIRouter
+from fastapi.params import Depends
+from fastapi.security import APIKeyHeader
+from pydantic import BaseModel
+from starlette import status
+
+from bolletta_sync.providers.fastweb import Fastweb
+
+load_dotenv()
+
+# Configure basic logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
+app = FastAPI()
+
+api_key_header = APIKeyHeader(name="X-API-Key")
 
 
-def api_key_required(f):
-    def wrapper(*args, **kwargs):
-        api_key = request.headers.get("x-api-key")
-        if not api_key or api_key != os.environ.get("API_KEY"):
-            return jsonify({"error": "Unauthorized"}), 401
-        return f(*args, **kwargs)
-
-    return wrapper
+async def validate_api_key(key: str = Security(api_key_header)):
+    if key != os.environ.get("API_KEY"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized - API Key is wrong"
+        )
+    return None
 
 
-@app.route("/sync", methods=["GET"])
-@api_key_required
-def sync():
-    pass
+router = APIRouter(dependencies=[Depends(validate_api_key)])
 
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0")
+class Provider(Enum):
+    FASTWEB = "fastweb"
+    FASTEWEB_ENERGIA = "fastweb_energia"
+    ENI = "eni"
+    UMBRA_ACQUE = "umbra_acque"
+
+
+class SyncParams(BaseModel):
+    providers: list[Provider] = None
+    date_start: date = None
+    date_end: date = None
+
+
+@router.post("/sync")
+async def sync(sync_params: SyncParams):
+    return Fastweb().get_invoices()
+
+
+app.include_router(router)
