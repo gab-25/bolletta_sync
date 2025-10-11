@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class Fastweb(BaseProvider):
     def __init__(self, google_credentials):
-        super().__init__(google_credentials, logger)
+        super().__init__(google_credentials, logger, "fastweb")
         if os.getenv("FASTWEB_CLIENT_CODE") is None:
             raise Exception("FASTWEB_CLIENT_CODE not set")
         self.client_codes = os.getenv("FASTWEB_CLIENT_CODE").split(",")
@@ -46,17 +46,11 @@ class Fastweb(BaseProvider):
             raise Exception("login failed")
 
     async def _select_profile(self, client_code: str):
-        response = self._session.get("https://fastweb.it/myfastweb/")
-        if response.url.startswith(
-                "https://fastweb.it/myfastweb/accesso/seleziona-codice-cliente/"
-        ):
-            response = self._session.post(
-                "https://fastweb.it/myfastweb/accesso/profile/", {"account": client_code}
-            )
-            if response.url != "https://fastweb.it/myfastweb/":
-                raise Exception("invalid client code")
-        else:
-            raise Exception("profile not selected")
+        response = self._session.post(
+            "https://fastweb.it/myfastweb/accesso/profile/", {"account": client_code}
+        )
+        if response.url != "https://fastweb.it/myfastweb/":
+            raise Exception("invalid client code")
 
     async def get_invoices(self, start_date: date, end_date: date) -> list[Invoice]:
         invoices: list[Invoice] = []
@@ -80,7 +74,8 @@ class Fastweb(BaseProvider):
 
             invoice_list = list(
                 map(lambda i: Invoice(id=i["NumDoc"], doc_date=i["DocDateYMD"], due_date=i["DocExpireDateYMD"],
-                                      amount=i["DocAmount"]), response.json().get("invoiceList", [])))
+                                      amount=i["DocAmount"], client_code=client_code),
+                    response.json().get("invoiceList", [])))
             invoice_list_filtered = list(
                 filter(lambda invoice: start_date <= invoice.doc_date <= end_date, invoice_list))
             if invoice_list_filtered:
@@ -89,13 +84,22 @@ class Fastweb(BaseProvider):
         return invoices
 
     async def download_invoice(self, invoice: Invoice) -> bytes:
+        await self._select_profile(invoice.client_code)
         response = self._session.get(
-            f"https://fastweb.it/myfastweb/abbonamento/le-mie-fatture/conto-fastweb/?type=PDF_SUMMARY&invoiceIssueDate={invoice.doc_date.strftime('%Y-%m-%d')}&invoiceNumber={invoice.id}")
+            f"https://fastweb.it/myfastweb/abbonamento/le-mie-fatture/conto-fastweb/Conto-FASTWEB-{invoice.id}-{invoice.doc_date.strftime('%Y%m%d')}.pdf",
+        )
+
+        if response.status_code != 200:
+            raise Exception(f"Failed to download invoice PDF: {response.url} HTTP {response.status_code}")
+
         invoice_pdf = response.content
+
         return invoice_pdf
 
     async def save_invoice(self, invoice: Invoice, invoice_pdf: bytes) -> bool:
-        return await super().save_invoice(invoice, invoice_pdf)
+        result = await super().save_invoice(invoice, invoice_pdf)
+        return result
 
     async def set_expire_invoice(self, invoice: Invoice) -> bool:
-        return await super().set_expire_invoice(invoice)
+        result = await super().set_expire_invoice(invoice)
+        return result

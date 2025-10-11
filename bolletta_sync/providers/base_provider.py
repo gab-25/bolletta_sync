@@ -13,12 +13,14 @@ class Invoice(BaseModel):
     doc_date: date
     due_date: date
     amount: float
+    client_code: str
 
 
 class BaseProvider(ABC):
-    def __init__(self, google_credentials, logger):
+    def __init__(self, google_credentials, logger, namespace: str):
         self._google_credentials = google_credentials
         self._logger = logger
+        self._namespace = namespace
 
     async def get_invoices(self, start_date: date, end_date: date) -> list[Invoice]:
         """
@@ -36,24 +38,50 @@ class BaseProvider(ABC):
         """
         save the invoice to google drive
         """
-        drive_service = build("drive", "v3", credentials=self._google_credentials)
+        drive_service = build("drive", "v3", credentials=self._google_credentials, cache_discovery=False)
+
+        namespace_folder_id = None
+        folder_metadata = {
+            'name': self._namespace,
+            'mimeType': 'application/vnd.google-apps.folder',
+            'parents': [os.getenv('GOOGLE_DRIVE_FOLDER_ID')]
+        }
+        results = drive_service.files().list(
+            q=f"name='{self._namespace}' and mimeType='application/vnd.google-apps.folder' and '{os.getenv('GOOGLE_DRIVE_FOLDER_ID')}' in parents",
+            spaces='drive'
+        ).execute()
+        if not results.get('files'):
+            folder = drive_service.files().create(
+                body=folder_metadata,
+                fields='id'
+            ).execute()
+            namespace_folder_id = folder.get('id')
+        else:
+            namespace_folder_id = results.get('files')[0].get('id')
+
+        file_name = f"{self._namespace}_{invoice.doc_date.strftime('%Y-%m-%d')}_{invoice.id}.pdf"
+        results = drive_service.files().list(
+            q=f"name='{file_name}' and '{namespace_folder_id}' in parents",
+            spaces='drive'
+        ).execute()
+        if results.get('files'):
+            self._logger.info(f"file {file_name} already exists in google drive")
+            return True
 
         file_metadata = {
-            "name": f"Fastweb_{invoice.doc_date.strftime('%Y-%m-%d')}_{invoice.id}.pdf",
-            "parents": [os.getenv("GOOGLE_DRIVE_FOLDER_ID")]
+            "name": file_name,
+            "parents": [namespace_folder_id]
         }
-
         media = MediaIoBaseUpload(BytesIO(invoice_pdf), mimetype="application/pdf")
-
         file = drive_service.files().create(
             body=file_metadata,
             media_body=media,
             fields="id"
         ).execute()
 
-        self._logger.info(f"create file {file.get('name')} in google drive")
+        self._logger.info(f"create file {file_name} in google drive")
 
-        return file.get("id") is not None
+        return True
 
     async def set_expire_invoice(self, invoice: Invoice) -> bool:
         """
