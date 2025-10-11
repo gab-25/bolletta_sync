@@ -11,7 +11,8 @@ logger = logging.getLogger(__name__)
 
 
 class Fastweb(BaseProvider):
-    def __init__(self):
+    def __init__(self, google_credentials):
+        super().__init__(google_credentials, logger)
         if os.getenv("FASTWEB_CLIENT_CODE") is None:
             raise Exception("FASTWEB_CLIENT_CODE not set")
         self.client_codes = os.getenv("FASTWEB_CLIENT_CODE").split(",")
@@ -57,7 +58,7 @@ class Fastweb(BaseProvider):
         else:
             raise Exception("profile not selected")
 
-    async def get_invoices(self, start_date: date, end_date: date):
+    async def get_invoices(self, start_date: date, end_date: date) -> list[Invoice]:
         invoices: list[Invoice] = []
 
         for client_code in self.client_codes:
@@ -80,6 +81,21 @@ class Fastweb(BaseProvider):
             invoice_list = list(
                 map(lambda i: Invoice(id=i["NumDoc"], doc_date=i["DocDateYMD"], due_date=i["DocExpireDateYMD"],
                                       amount=i["DocAmount"]), response.json().get("invoiceList", [])))
-            invoices.append(*filter(lambda invoice: start_date <= invoice.doc_date <= end_date, invoice_list))
+            invoice_list_filtered = list(
+                filter(lambda invoice: start_date <= invoice.doc_date <= end_date, invoice_list))
+            if invoice_list_filtered:
+                invoices.extend(invoice_list_filtered)
 
         return invoices
+
+    async def download_invoice(self, invoice: Invoice) -> bytes:
+        response = self._session.get(
+            f"https://fastweb.it/myfastweb/abbonamento/le-mie-fatture/conto-fastweb/?type=PDF_SUMMARY&invoiceIssueDate={invoice.doc_date.strftime('%Y-%m-%d')}&invoiceNumber={invoice.id}")
+        invoice_pdf = response.content
+        return invoice_pdf
+
+    async def save_invoice(self, invoice: Invoice, invoice_pdf: bytes) -> bool:
+        return await super().save_invoice(invoice, invoice_pdf)
+
+    async def set_expire_invoice(self, invoice: Invoice) -> bool:
+        return await super().set_expire_invoice(invoice)

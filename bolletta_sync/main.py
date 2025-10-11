@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Security, HTTPException, APIRouter
 from fastapi.params import Depends
 from fastapi.security import APIKeyHeader
+from google_auth_oauthlib.flow import InstalledAppFlow
 from pydantic import BaseModel
 from starlette import status
 
@@ -38,6 +39,11 @@ async def validate_api_key(key: str = Security(api_key_header)):
         )
     return None
 
+flow = InstalledAppFlow.from_client_secrets_file(
+            "google_credentials.json",
+            ["https://www.googleapis.com/auth/drive.file"]
+        )
+google_credentials = flow.run_local_server(port=0)
 
 router = APIRouter(dependencies=[Depends(validate_api_key)])
 
@@ -70,7 +76,7 @@ async def sync(sync_params: SyncParams):
         instance = None
 
         if provider == Provider.FASTWEB:
-            instance = Fastweb()
+            instance = Fastweb(google_credentials)
         elif provider == Provider.FASTEWEB_ENERGIA:
             instance = FastwebEnergia()
         elif provider == Provider.ENI:
@@ -79,16 +85,18 @@ async def sync(sync_params: SyncParams):
             instance = UmbraAcque()
 
         if instance is None:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unknown provider")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown provider")
 
         try:
             logger.info(f"Syncing invoices from {provider.value}")
             invoces = await instance.get_invoices(sync_params.start_date, sync_params.end_date)
             for invoce in invoces:
-                doc = await instance.download_invoice(invoce.id)
+                doc = await instance.download_invoice(invoce)
                 await instance.save_invoice(invoce, doc)
+                await instance.set_expire_invoice(invoce)
         except Exception as e:
-            logger.error(f"Error while syncing with {provider.value}: {e}")
+            logger.error(f"Error while syncing with {provider.value}", e)
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
 
 app.include_router(router)

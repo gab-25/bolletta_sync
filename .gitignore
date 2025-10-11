@@ -173,4 +173,4 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
-service-account.json
+google_credentials.json
