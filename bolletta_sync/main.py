@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Security, HTTPException, APIRouter
 from fastapi.params import Depends
 from fastapi.security import APIKeyHeader
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from pydantic import BaseModel
 from starlette import status
@@ -39,13 +41,30 @@ async def validate_api_key(key: str = Security(api_key_header)):
         )
     return None
 
-flow = InstalledAppFlow.from_client_secrets_file(
-            "google_credentials.json",
-            ["https://www.googleapis.com/auth/drive.file"]
-        )
-google_credentials = flow.run_local_server(port=0)
+
+def google_login():
+    SCOPES = ["https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/calendar.events"]
+    credentials = None
+
+    if os.path.exists("google_token.json"):
+        credentials = Credentials.from_authorized_user_file("google_token.json", SCOPES)
+
+    if not credentials or not credentials.valid:
+        if credentials and credentials.expired and credentials.refresh_token:
+            credentials.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                "google_credentials.json", SCOPES
+            )
+            credentials = flow.run_local_server(port=0)
+        with open("google_token.json", "w") as token:
+            token.write(credentials.to_json())
+
+    return credentials
+
 
 router = APIRouter(dependencies=[Depends(validate_api_key)])
+google_credentials = google_login()
 
 
 class Provider(Enum):
@@ -90,10 +109,11 @@ async def sync(sync_params: SyncParams):
         try:
             logger.info(f"Syncing invoices from {provider.value}")
             invoces = await instance.get_invoices(sync_params.start_date, sync_params.end_date)
+            logger.info(f"Synced {len(invoces)} invoices from {provider.value}")
             for invoce in invoces:
                 doc = await instance.download_invoice(invoce)
                 await instance.save_invoice(invoce, doc)
-                await instance.set_expire_invoice(invoce)
+                # await instance.set_expire_invoice(invoce)
         except Exception as e:
             logger.error(f"Error while syncing with {provider.value}", e)
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
