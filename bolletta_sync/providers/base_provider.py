@@ -21,6 +21,45 @@ class BaseProvider(ABC):
         self._google_credentials = google_credentials
         self._logger = logger
         self._namespace = namespace
+        self.namespace_folder_id = None
+        self.namespace_tasklist_id = None
+
+        self.drive_service = build("drive", "v3", credentials=self._google_credentials, cache_discovery=False)
+        self.tasks_service = build("tasks", "v1", credentials=self._google_credentials, cache_discovery=False)
+
+    async def check_namespace(self) -> bool:
+        # google drive
+        folder_metadata = {
+            'name': self._namespace,
+            'mimeType': 'application/vnd.google-apps.folder',
+            'parents': [os.getenv('GOOGLE_DRIVE_FOLDER_ID')]
+        }
+        results = self.drive_service.files().list(
+            q=f"name='{self._namespace}' and mimeType='application/vnd.google-apps.folder' and '{os.getenv('GOOGLE_DRIVE_FOLDER_ID')}' in parents and trashed=false",
+            spaces='drive'
+        ).execute()
+        if not results.get('files'):
+            folder = self.drive_service.files().create(
+                body=folder_metadata,
+                fields='id'
+            ).execute()
+            self.namespace_folder_id = folder.get('id')
+        else:
+            self.namespace_folder_id = results.get('files')[0].get('id')
+
+        # google tasks
+        tasklist_name = "Bollette"
+        tasklists = self.tasks_service.tasklists().list().execute()
+        self.namespace_tasklist_id = None
+        for tasklist in tasklists.get('items', []):
+            if tasklist['title'] == tasklist_name:
+                self.namespace_tasklist_id = tasklist['id']
+                break
+        if not self.namespace_tasklist_id:
+            tasklist = self.tasks_service.tasklists().insert(body={'title': tasklist_name}).execute()
+            self.namespace_tasklist_id = tasklist['id']
+
+        return True
 
     async def get_invoices(self, start_date: date, end_date: date) -> list[Invoice]:
         """
@@ -38,30 +77,9 @@ class BaseProvider(ABC):
         """
         save the invoice to google drive
         """
-        drive_service = build("drive", "v3", credentials=self._google_credentials, cache_discovery=False)
-
-        namespace_folder_id = None
-        folder_metadata = {
-            'name': self._namespace,
-            'mimeType': 'application/vnd.google-apps.folder',
-            'parents': [os.getenv('GOOGLE_DRIVE_FOLDER_ID')]
-        }
-        results = drive_service.files().list(
-            q=f"name='{self._namespace}' and mimeType='application/vnd.google-apps.folder' and '{os.getenv('GOOGLE_DRIVE_FOLDER_ID')}' in parents",
-            spaces='drive'
-        ).execute()
-        if not results.get('files'):
-            folder = drive_service.files().create(
-                body=folder_metadata,
-                fields='id'
-            ).execute()
-            namespace_folder_id = folder.get('id')
-        else:
-            namespace_folder_id = results.get('files')[0].get('id')
-
         file_name = f"{self._namespace}_{invoice.doc_date.strftime('%Y-%m-%d')}_{invoice.id}.pdf"
-        results = drive_service.files().list(
-            q=f"name='{file_name}' and '{namespace_folder_id}' in parents",
+        results = self.drive_service.files().list(
+            q=f"name='{file_name}' and '{self.namespace_folder_id}' in parents and trashed=false",
             spaces='drive'
         ).execute()
         if results.get('files'):
@@ -70,10 +88,10 @@ class BaseProvider(ABC):
 
         file_metadata = {
             "name": file_name,
-            "parents": [namespace_folder_id]
+            "parents": [self.namespace_folder_id]
         }
         media = MediaIoBaseUpload(BytesIO(invoice_pdf), mimetype="application/pdf")
-        file = drive_service.files().create(
+        file = self.drive_service.files().create(
             body=file_metadata,
             media_body=media,
             fields="id"
@@ -87,21 +105,8 @@ class BaseProvider(ABC):
         """
         set expire invoice to google tasks
         """
-        tasks_service = build("tasks", "v1", credentials=self._google_credentials, cache_discovery=False)
-
-        tasklist_name = "Bollette"
-        tasklists = tasks_service.tasklists().list().execute()
-        tasklist_id = None
-        for tasklist in tasklists.get('items', []):
-            if tasklist['title'] == tasklist_name:
-                tasklist_id = tasklist['id']
-                break
-        if not tasklist_id:
-            tasklist = tasks_service.tasklists().insert(body={'title': tasklist_name}).execute()
-            tasklist_id = tasklist['id']
-
         task_title = f"Pagare {self._namespace} fattura {invoice.id}"
-        tasks = tasks_service.tasks().list(tasklist=tasklist_id).execute()
+        tasks = self.tasks_service.tasks().list(tasklist=self.namespace_tasklist_id).execute()
         for task in tasks.get('items', []):
             if task['title'] == task_title:
                 self._logger.info(f"task for invoice {invoice.id} already exists")
@@ -112,7 +117,7 @@ class BaseProvider(ABC):
             'due': invoice.due_date.strftime('%Y-%m-%dT00:00:00Z'),
             'notes': f'Totale: {invoice.amount}'
         }
-        task = tasks_service.tasks().insert(tasklist=tasklist_id, body=task_metadata).execute()
+        task = self.tasks_service.tasks().insert(tasklist=self.namespace_tasklist_id, body=task_metadata).execute()
 
         self._logger.info(f"created task for invoice {invoice.id}")
 

@@ -110,6 +110,7 @@ async def sync(sync_params: SyncParams):
             logger.info(f"Syncing invoices from {provider.value}")
             invoces = await instance.get_invoices(sync_params.start_date, sync_params.end_date)
             logger.info(f"Synced {len(invoces)} invoices from {provider.value}")
+            await instance.check_namespace()
             for invoce in invoces:
                 doc = await instance.download_invoice(invoce)
                 await instance.save_invoice(invoce, doc)
