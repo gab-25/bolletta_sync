@@ -43,18 +43,18 @@ async def validate_api_key(key: str = Security(api_key_header)):
 
 
 def google_login():
-    SCOPES = ["https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/calendar.events"]
+    scopes = ["https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/tasks"]
     credentials = None
 
     if os.path.exists("google_token.json"):
-        credentials = Credentials.from_authorized_user_file("google_token.json", SCOPES)
+        credentials = Credentials.from_authorized_user_file("google_token.json", scopes)
 
     if not credentials or not credentials.valid:
         if credentials and credentials.expired and credentials.refresh_token:
             credentials.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(
-                "google_credentials.json", SCOPES
+                "google_credentials.json", scopes
             )
             credentials = flow.run_local_server(port=0)
         with open("google_token.json", "w") as token:
@@ -113,7 +113,7 @@ async def sync(sync_params: SyncParams):
             for invoce in invoces:
                 doc = await instance.download_invoice(invoce)
                 await instance.save_invoice(invoce, doc)
-                # await instance.set_expire_invoice(invoce)
+                await instance.set_expire_invoice(invoce)
         except Exception as e:
             logger.error(f"Error while syncing with {provider.value}", e)
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")

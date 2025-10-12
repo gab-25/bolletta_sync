@@ -85,33 +85,35 @@ class BaseProvider(ABC):
 
     async def set_expire_invoice(self, invoice: Invoice) -> bool:
         """
-        set expire invoice to google calendar
+        set expire invoice to google tasks
         """
-        calendar_service = build("calendar", "v3", credentials=self._google_credentials)
+        tasks_service = build("tasks", "v1", credentials=self._google_credentials, cache_discovery=False)
 
-        event = {
-            'summary': f'Scadenza Fastweb {invoice.id}',
-            'description': f'Fattura Fastweb {invoice.id} - {invoice.amount}€',
-            'start': {
-                'date': invoice.due_date.strftime('%Y-%m-%d'),
-            },
-            'end': {
-                'date': invoice.due_date.strftime('%Y-%m-%d'),
-            },
-            'reminders': {
-                'useDefault': False,
-                'overrides': [
-                    {'method': 'email', 'minutes': 24 * 60},
-                    {'method': 'popup', 'minutes': 24 * 60},
-                ],
-            },
+        tasklist_name = "Bollette"
+        tasklists = tasks_service.tasklists().list().execute()
+        tasklist_id = None
+        for tasklist in tasklists.get('items', []):
+            if tasklist['title'] == tasklist_name:
+                tasklist_id = tasklist['id']
+                break
+        if not tasklist_id:
+            tasklist = tasks_service.tasklists().insert(body={'title': tasklist_name}).execute()
+            tasklist_id = tasklist['id']
+
+        task_title = f"Pagare {self._namespace} fattura {invoice.id}"
+        tasks = tasks_service.tasks().list(tasklist=tasklist_id).execute()
+        for task in tasks.get('items', []):
+            if task['title'] == task_title:
+                self._logger.info(f"task for invoice {invoice.id} already exists")
+                return True
+
+        task_metadata = {
+            'title': task_title,
+            'due': invoice.due_date.strftime('%Y-%m-%dT00:00:00Z'),
+            'notes': f'Totale: {invoice.amount}'
         }
+        task = tasks_service.tasks().insert(tasklist=tasklist_id, body=task_metadata).execute()
 
-        event = calendar_service.events().insert(
-            calendarId='primary',
-            body=event
-        ).execute()
+        self._logger.info(f"created task for invoice {invoice.id}")
 
-        self._logger.info(f"created calendar event for invoice {invoice.id}")
-
-        return event.get('id') is not None
+        return True
