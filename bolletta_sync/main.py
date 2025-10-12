@@ -119,7 +119,7 @@ async def sync(sync_params: SyncParams):
             logger.error(f"Error while syncing with {provider.value}", e)
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
-    return {"message": "invoices synced successfully"}, 200
+    return {"message": "invoices synced successfully"}
 
 
 app.include_router(router)
