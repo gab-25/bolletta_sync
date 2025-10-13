@@ -18,7 +18,9 @@ from bolletta_sync.providers.fastweb import Fastweb
 from bolletta_sync.providers.fastweb_energia import FastwebEnergia
 from bolletta_sync.providers.umbra_acque import UmbraAcque
 
-load_dotenv()
+DEV_MODE = os.environ.get("DEV_MODE") == "true"
+if DEV_MODE:
+    load_dotenv()
 
 # Configure basic logging
 logging.basicConfig(
