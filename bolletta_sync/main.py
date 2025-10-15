@@ -31,7 +31,24 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
+scopes = ["https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/tasks"]
+credentials = None
+
+if os.path.exists("google_token.json"):
+    credentials = Credentials.from_authorized_user_file("google_token.json", scopes)
+
+if not credentials or not credentials.valid:
+    if credentials and credentials.expired and credentials.refresh_token:
+        credentials.refresh(Request())
+    else:
+        flow = InstalledAppFlow.from_client_secrets_file(
+            "google_credentials.json", scopes
+        )
+        credentials = flow.run_local_server(bind_addr="0.0.0.0", port=8080, open_browser=False)
+    with open("google_token.json", "w") as token:
+        token.write(credentials.to_json())
+
+google_credentials = credentials
 
 api_key_header = APIKeyHeader(name="X-API-Key")
 
@@ -44,29 +61,10 @@ async def validate_api_key(key: str = Security(api_key_header)):
     return None
 
 
-def google_login():
-    scopes = ["https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/tasks"]
-    credentials = None
-
-    if os.path.exists("google_token.json"):
-        credentials = Credentials.from_authorized_user_file("google_token.json", scopes)
-
-    if not credentials or not credentials.valid:
-        if credentials and credentials.expired and credentials.refresh_token:
-            credentials.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                "google_credentials.json", scopes
-            )
-            credentials = flow.run_local_server(port=0, open_browser=False)
-        with open("google_token.json", "w") as token:
-            token.write(credentials.to_json())
-
-    return credentials
-
-
 router = APIRouter(dependencies=[Depends(validate_api_key)])
-google_credentials = google_login()
+
+app = FastAPI()
+app.include_router(router)
 
 
 class Provider(Enum):
@@ -122,6 +120,3 @@ async def sync(sync_params: SyncParams):
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
     return {"message": "invoices synced successfully"}
-
-
-app.include_router(router)
