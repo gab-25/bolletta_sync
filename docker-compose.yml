@@ -1,9 +1,10 @@
 services:
   bolletta_sync:
-    container_name: bolletta_sync
-    build: .
+    image: ghcr.io/gab-25/bolletta_sync:main
     restart: always
     ports:
-      - "5000:5000"
+      - "8000:8000"
+    volumes:
+      - ./google_credentials.json:/app/google_credentials.json
     env_file:
       - .env

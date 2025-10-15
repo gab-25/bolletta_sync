@@ -58,7 +58,7 @@ def google_login():
             flow = InstalledAppFlow.from_client_secrets_file(
                 "google_credentials.json", scopes
             )
-            credentials = flow.run_local_server(port=0)
+            credentials = flow.run_local_server(port=0, open_browser=False)
         with open("google_token.json", "w") as token:
             token.write(credentials.to_json())
 
