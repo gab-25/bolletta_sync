@@ -67,6 +67,11 @@ class SyncParams(BaseModel):
     end_date: date = None
 
 
+@app.get("/")
+async def home():
+    return {"message": "Welcome to bolletta-sync!"}
+
+
 @router.post("/sync")
 async def sync(sync_params: SyncParams):
     google_credentials = await get_google_credentials()
