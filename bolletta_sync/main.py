@@ -32,7 +32,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-google_auth_scopes = ["https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/tasks"]
+google_auth_scopes = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/tasks"]
 google_auth_folder = "./" if DEV_MODE else "./google_auth"
 google_credentials_file = os.path.join(google_auth_folder, "google_credentials.json")
 google_token_file = os.path.join(google_auth_folder, "google_token.json")
@@ -65,7 +65,7 @@ class Provider(Enum):
 
 class SyncParams(BaseModel):
     providers: list[Provider] = [Provider.FASTWEB]
-    start_date: date = date.today().replace(day=1)
+    start_date: date = date.today() - timedelta(days=10)
     end_date: date = date.today()
 
 
@@ -132,19 +132,14 @@ async def get_google_credentials() -> Credentials:
 
 @app.get("/google_auth")
 async def google_auth(request: Request = None):
-    credentials = await get_google_credentials()
-
-    if not credentials or not credentials.valid:
-        flow = InstalledAppFlow.from_client_secrets_file(
-            google_credentials_file, google_auth_scopes
-        )
-        flow.redirect_uri = str(request.url_for("google_auth_callback"))
-        if not DEV_MODE:
-            flow.redirect_uri = flow.redirect_uri.replace("http://", "https://")
-        url, _ = flow.authorization_url(access_type="offline", include_granted_scopes="true")
-        return RedirectResponse(url)
-
-    return {"message": "Google credentials valid"}
+    flow = InstalledAppFlow.from_client_secrets_file(
+        google_credentials_file, google_auth_scopes
+    )
+    flow.redirect_uri = str(request.url_for("google_auth_callback"))
+    if not DEV_MODE:
+        flow.redirect_uri = flow.redirect_uri.replace("http://", "https://")
+    url, _ = flow.authorization_url(prompt="consent", access_type="offline", include_granted_scopes="true")
+    return RedirectResponse(url)
 
 
 @app.get("/google_auth/callback")

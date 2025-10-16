@@ -1,4 +1,3 @@
-import os
 from abc import ABC
 from datetime import date
 from io import BytesIO
@@ -27,25 +26,34 @@ class BaseProvider(ABC):
         self.drive_service = build("drive", "v3", credentials=self._google_credentials, cache_discovery=False)
         self.tasks_service = build("tasks", "v1", credentials=self._google_credentials, cache_discovery=False)
 
-    async def check_namespace(self) -> bool:
-        # google drive
-        folder_metadata = {
-            'name': self._namespace,
-            'mimeType': 'application/vnd.google-apps.folder',
-            'parents': [os.getenv('GOOGLE_DRIVE_FOLDER_ID')]
-        }
+    async def _create_folder(self, folder_name: str, parent_folder_id: str = None) -> str:
+        query = f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+        if parent_folder_id:
+            query += f" and '{parent_folder_id}' in parents"
         results = self.drive_service.files().list(
-            q=f"name='{self._namespace}' and mimeType='application/vnd.google-apps.folder' and '{os.getenv('GOOGLE_DRIVE_FOLDER_ID')}' in parents and trashed=false",
+            q=query,
             spaces='drive'
         ).execute()
-        if not results.get('files'):
-            folder = self.drive_service.files().create(
-                body=folder_metadata,
-                fields='id'
-            ).execute()
-            self.namespace_folder_id = folder.get('id')
-        else:
-            self.namespace_folder_id = results.get('files')[0].get('id')
+
+        if results.get('files'):
+            return results.get('files')[0].get('id')
+
+        folder_metadata = {
+            'name': folder_name,
+            'mimeType': 'application/vnd.google-apps.folder'
+        }
+        folder = self.drive_service.files().create(
+            body=folder_metadata,
+            fields='id'
+        ).execute()
+
+        return folder.get('id')
+
+    async def check_namespace(self) -> bool:
+        # google drive
+        bollette_folder_id = await self._create_folder("bollette")
+        year_folder_id = await self._create_folder(str(date.today().year), bollette_folder_id)
+        self.namespace_folder_id = await self._create_folder(self._namespace, year_folder_id)
 
         # google tasks
         tasklist_name = "Bollette"
