@@ -51,7 +51,6 @@ async def validate_api_key(key: str = Security(api_key_header)):
 router = APIRouter(dependencies=[Depends(validate_api_key)])
 
 app = FastAPI()
-app.include_router(router)
 
 
 class Provider(Enum):
@@ -157,3 +156,6 @@ async def google_auth_callback(state: str = None, code: str = None):
         token.write(credentials.to_json())
 
     return {"message": "Google credentials saved successfully"}
+
+
+app.include_router(router)
