@@ -1,6 +1,6 @@
 services:
   bolletta_sync:
-    image: ghcr.io/gab-25/bolletta_sync:main
+    build: .
     restart: always
     ports:
       - "8000:8000"
