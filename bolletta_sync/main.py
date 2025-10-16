@@ -4,11 +4,11 @@ from datetime import date, timedelta
 from enum import Enum
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Security, HTTPException, APIRouter
+from fastapi import FastAPI, Security, HTTPException, APIRouter, Request
 from fastapi.params import Depends
 from fastapi.responses import RedirectResponse
 from fastapi.security import APIKeyHeader
-from google.auth.transport.requests import Request
+from google.auth.transport.requests import Request as AuthRequest
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from pydantic import BaseModel
@@ -32,9 +32,12 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-scopes = ["https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/tasks"]
+google_auth_scopes = ["https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/tasks"]
+google_auth_folder = "./" if DEV_MODE else "./google_auth"
+google_credentials_file = os.path.join(google_auth_folder, "google_credentials.json")
+google_token_file = os.path.join(google_auth_folder, "google_token.json")
 
-if not os.path.exists("google_token.json"):
+if not os.path.exists(google_token_file):
     logger.info("Google token not found, starting OAuth flow")
 
 api_key_header = APIKeyHeader(name="X-API-Key")
@@ -61,9 +64,9 @@ class Provider(Enum):
 
 
 class SyncParams(BaseModel):
-    providers: list[Provider] = None
-    start_date: date = None
-    end_date: date = None
+    providers: list[Provider] = [Provider.FASTWEB]
+    start_date: date = date.today().replace(day=1)
+    end_date: date = date.today()
 
 
 @app.get("/")
@@ -118,24 +121,26 @@ async def sync(sync_params: SyncParams):
 async def get_google_credentials() -> Credentials:
     google_credentials = None
 
-    if os.path.exists("google_token.json"):
-        google_credentials = Credentials.from_authorized_user_file("google_token.json", scopes)
+    if os.path.exists(google_token_file):
+        google_credentials = Credentials.from_authorized_user_file(google_token_file, google_auth_scopes)
 
     if google_credentials and google_credentials.expired:
-        google_credentials.refresh(Request())
+        google_credentials.refresh(AuthRequest())
 
     return google_credentials
 
 
 @app.get("/google_auth")
-async def google_auth():
+async def google_auth(request: Request = None):
     credentials = await get_google_credentials()
 
     if not credentials or not credentials.valid:
         flow = InstalledAppFlow.from_client_secrets_file(
-            "google_credentials.json", scopes
+            google_credentials_file, google_auth_scopes
         )
-        flow.redirect_uri = "http://localhost:8000/google_auth/callback"
+        flow.redirect_uri = str(request.url_for("google_auth_callback"))
+        if not DEV_MODE:
+            flow.redirect_uri = flow.redirect_uri.replace("http://", "https://")
         url, _ = flow.authorization_url(access_type="offline", include_granted_scopes="true")
         return RedirectResponse(url)
 
@@ -143,11 +148,13 @@ async def google_auth():
 
 
 @app.get("/google_auth/callback")
-async def google_auth_callback(state: str = None, code: str = None):
+async def google_auth_callback(state: str = None, code: str = None, request: Request = None):
     flow = InstalledAppFlow.from_client_secrets_file(
-        "google_credentials.json", scopes, state=state
+        google_credentials_file, google_auth_scopes, state=state
     )
-    flow.redirect_uri = "http://localhost:8000/google_auth/callback"
+    flow.redirect_uri = str(request.url_for("google_auth_callback"))
+    if not DEV_MODE:
+        flow.redirect_uri = flow.redirect_uri.replace("http://", "https://")
     flow.fetch_token(code=code)
 
     credentials = flow.credentials

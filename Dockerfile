@@ -9,4 +9,4 @@ RUN pip install -r requirements.txt
 
 COPY bolletta_sync ./bolletta_sync
 
-CMD ["python", "-m", "uvicorn", "bolletta_sync.main:app"]
+CMD ["python", "-m", "uvicorn", "bolletta_sync.main:app", "--host=0.0.0.0"]
