@@ -154,7 +154,7 @@ async def google_auth_callback(state: str = None, code: str = None, request: Req
 
     credentials = flow.credentials
 
-    with open("google_token.json", "w") as token:
+    with open(google_token_file, "w") as token:
         token.write(credentials.to_json())
 
     return {"message": "Google credentials saved successfully"}
