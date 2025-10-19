@@ -11,7 +11,7 @@ from fastapi.security import APIKeyHeader
 from google.auth.transport.requests import Request as AuthRequest
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from starlette import status
 
 from bolletta_sync.providers.eni import Eni
@@ -33,9 +33,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 google_auth_scopes = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/tasks"]
-google_auth_folder = "./" if DEV_MODE else "./google_auth"
-google_credentials_file = os.path.join(google_auth_folder, "google_credentials.json")
-google_token_file = os.path.join(google_auth_folder, "google_token.json")
+google_credentials_file = "./google_credentials.json"
+google_token_file = "./google_token.json"
 
 if not os.path.exists(google_token_file):
     logger.info("Google token not found, starting OAuth flow")
@@ -67,6 +66,12 @@ class SyncParams(BaseModel):
     providers: list[Provider] = [Provider.FASTWEB]
     start_date: date = date.today() - timedelta(days=10)
     end_date: date = date.today()
+
+    @model_validator(mode="after")
+    def validate_year(self):
+        if self.start_date.year != self.end_date.year:
+            raise ValueError("start_date and end_date must be in the same year")
+        return self
 
 
 @app.get("/")
