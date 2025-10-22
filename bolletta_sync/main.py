@@ -13,6 +13,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from pydantic import BaseModel, model_validator
 from starlette import status
+from twocaptcha import TwoCaptcha
 
 from bolletta_sync.providers.eni import Eni
 from bolletta_sync.providers.fastweb import Fastweb
@@ -39,6 +40,8 @@ google_token_file = "./google_token.json"
 if not os.path.exists(google_token_file):
     logger.info("Google token not found, starting OAuth flow")
 
+solver = TwoCaptcha(os.getenv("TWOCAPTCHA_API_KEY"))
+
 api_key_header = APIKeyHeader(name="X-API-Key")
 
 
@@ -63,7 +66,7 @@ class Provider(Enum):
 
 
 class SyncParams(BaseModel):
-    providers: list[Provider] = [Provider.FASTWEB, Provider.FASTEWEB_ENERGIA]
+    providers: list[Provider] = [Provider.FASTWEB, Provider.FASTEWEB_ENERGIA, Provider.UMBRA_ACQUE]
     start_date: date = date.today() - timedelta(days=10)
     end_date: date = date.today()
 
@@ -102,7 +105,7 @@ async def sync(sync_params: SyncParams):
         elif provider == Provider.ENI:
             instance = Eni()
         elif provider == Provider.UMBRA_ACQUE:
-            instance = UmbraAcque()
+            instance = UmbraAcque(google_credentials, solver)
 
         if instance is None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown provider")
