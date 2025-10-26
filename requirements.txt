@@ -8,3 +8,4 @@ beautifulsoup4==4.13.5
 google-api-python-client==2.184.0
 google-auth-oauthlib==1.2.2
 2captcha-python==1.5.1
+playwright==1.55.0
