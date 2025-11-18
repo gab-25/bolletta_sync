@@ -1,9 +1,8 @@
-fastapi==0.116.2
-starlette==0.48.0
 pydantic==2.11.9
-uvicorn==0.35.0
 requests==2.32.5
 python-dotenv==1.1.1
 beautifulsoup4==4.13.5
 google-api-python-client==2.184.0
 google-auth-oauthlib==1.2.2
+playwright==1.56.0
+pyside6==6.10.0
