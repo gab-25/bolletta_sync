@@ -1,4 +1,3 @@
-import logging
 import os
 from datetime import date
 
@@ -7,15 +6,13 @@ from bs4 import BeautifulSoup
 
 from bolletta_sync.providers.base_provider import BaseProvider, Invoice
 
-logger = logging.getLogger(__name__)
-
 
 class FastwebEnergia(BaseProvider):
     def __init__(self, google_credentials):
-        super().__init__(google_credentials, logger, "fastweb_energia")
+        super().__init__(google_credentials, "fastweb_energia")
         self._session = requests.Session()
 
-    async def _login_fastweb_energia(self):
+    def _login_fastweb_energia(self):
         self._session.cookies.clear()
         response = self._session.get("https://www.fastweb.it/myfastweb-energia/login/")
         soup = BeautifulSoup(response.text, "html.parser")
@@ -37,10 +34,10 @@ class FastwebEnergia(BaseProvider):
         if response_body.get("errorCode") != 0:
             raise Exception("login failed")
 
-    async def get_invoices(self, start_date: date, end_date: date) -> list[Invoice]:
+    def get_invoices(self, start_date: date, end_date: date) -> list[Invoice]:
         invoices: list[Invoice] = []
 
-        await self._login_fastweb_energia()
+        self._login_fastweb_energia()
 
         payload = {"action": "loadInvoiceList"}
         response = self._session.post(
@@ -59,7 +56,7 @@ class FastwebEnergia(BaseProvider):
 
         return invoices
 
-    async def download_invoice(self, invoice: Invoice) -> bytes:
+    def download_invoice(self, invoice: Invoice) -> bytes:
         response = self._session.get(
             f"https://www.fastweb.it/myfastweb-energia/bollette/download/{invoice.id}-{invoice.doc_date}.pdf"
         )
@@ -71,10 +68,10 @@ class FastwebEnergia(BaseProvider):
 
         return invoice_pdf
 
-    async def save_invoice(self, invoice: Invoice, invoice_pdf: bytes) -> bool:
-        result = await super().save_invoice(invoice, invoice_pdf)
+    def save_invoice(self, invoice: Invoice, invoice_pdf: bytes) -> bool:
+        result = super().save_invoice(invoice, invoice_pdf)
         return result
 
-    async def set_expire_invoice(self, invoice: Invoice) -> bool:
-        result = await super().set_expire_invoice(invoice)
+    def set_expire_invoice(self, invoice: Invoice) -> bool:
+        result = super().set_expire_invoice(invoice)
         return result
