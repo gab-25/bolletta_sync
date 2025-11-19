@@ -98,8 +98,6 @@ def get_google_credentials() -> Credentials:
 
 
 def google_auth():
-    print("Starting Google OAuth flow")
-
     flow = InstalledAppFlow.from_client_secrets_file(google_credentials_file, google_auth_scopes)
     credentials = flow.run_local_server(port=0)
 
@@ -110,8 +108,6 @@ def google_auth():
 
 
 def main():
-    print("Starting Bolletta Sync")
-
     google_credentials = get_google_credentials()
     params = SyncParams()
 

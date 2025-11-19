@@ -29,6 +29,12 @@ class BaseProvider(ABC):
         self.drive_service = build("drive", "v3", credentials=self._google_credentials, cache_discovery=False)
         self.tasks_service = build("tasks", "v1", credentials=self._google_credentials, cache_discovery=False)
 
+    def get_cookies(self) -> dict:
+        cookies = {}
+        for cookie in self._browser.cookies():
+            cookies[cookie['name']] = cookie['value']
+        return cookies
+
     def _create_folder(self, folder_name: str, parent_folder_id: str = None) -> str:
         query = f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
         if parent_folder_id:
