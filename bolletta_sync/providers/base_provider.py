@@ -4,7 +4,10 @@ from io import BytesIO
 
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
+from playwright.sync_api import Playwright
 from pydantic import BaseModel
+
+from bolletta_sync.main import DEV_MODE
 
 
 class Invoice(BaseModel):
@@ -16,8 +19,9 @@ class Invoice(BaseModel):
 
 
 class BaseProvider(ABC):
-    def __init__(self, google_credentials, namespace: str):
+    def __init__(self, google_credentials, playwright: Playwright, namespace: str):
         self._google_credentials = google_credentials
+        self._browser = playwright.chromium.launch(headless=DEV_MODE == False).new_context()
         self._namespace = namespace
         self.namespace_folder_id = None
         self.namespace_tasklist_id = None

@@ -6,16 +6,17 @@ from dotenv import load_dotenv
 from google.auth.transport.requests import Request as AuthRequest
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
+from playwright.sync_api import Playwright, sync_playwright
 from pydantic import BaseModel, model_validator
+
+DEV_MODE = os.environ.get("DEV_MODE") == "true"
+if DEV_MODE:
+    load_dotenv()
 
 from bolletta_sync.providers.eni import Eni
 from bolletta_sync.providers.fastweb import Fastweb
 from bolletta_sync.providers.fastweb_energia import FastwebEnergia
 from bolletta_sync.providers.umbra_acque import UmbraAcque
-
-DEV_MODE = os.environ.get("DEV_MODE") == "true"
-if DEV_MODE:
-    load_dotenv()
 
 google_auth_scopes = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/tasks"]
 google_credentials_file = "./google_credentials.json"
@@ -41,7 +42,7 @@ class SyncParams(BaseModel):
         return self
 
 
-def sync(sync_params: SyncParams, google_credentials: Credentials):
+def sync(sync_params: SyncParams, google_credentials: Credentials, playwright: Playwright):
     if sync_params.providers is None:
         sync_params.providers = list(Provider)
     if sync_params.start_date is None:
@@ -55,7 +56,7 @@ def sync(sync_params: SyncParams, google_credentials: Credentials):
         instance = None
 
         if provider == Provider.FASTWEB:
-            instance = Fastweb(google_credentials)
+            instance = Fastweb(google_credentials, playwright)
         elif provider == Provider.FASTEWEB_ENERGIA:
             instance = FastwebEnergia(google_credentials)
         elif provider == Provider.ENI:
@@ -114,4 +115,5 @@ def main():
     google_credentials = get_google_credentials()
     params = SyncParams()
 
-    sync(params, google_credentials)
+    with sync_playwright() as playwright:
+        sync(params, google_credentials, playwright)
