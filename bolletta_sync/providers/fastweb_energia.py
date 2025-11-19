@@ -10,7 +10,6 @@ from bolletta_sync.providers.base_provider import BaseProvider, Invoice
 class FastwebEnergia(BaseProvider):
     def __init__(self, google_credentials, playwright: Playwright):
         super().__init__(google_credentials, playwright, "fastweb_energia")
-        self._session = requests.Session()
 
     def _login_fastweb_energia(self):
         page = self._browser.new_page()
@@ -32,7 +31,7 @@ class FastwebEnergia(BaseProvider):
         self._login_fastweb_energia()
 
         payload = {"action": "loadInvoiceList"}
-        response = self._session.post(
+        response = requests.post(
             "https://www.fastweb.it/myfastweb-energia/services/invoices/",
             payload,
             cookies=self.get_cookies(),
@@ -50,8 +49,9 @@ class FastwebEnergia(BaseProvider):
         return invoices
 
     def download_invoice(self, invoice: Invoice) -> bytes:
-        response = self._session.get(
-            f"https://www.fastweb.it/myfastweb-energia/bollette/download/{invoice.id}-{invoice.doc_date}.pdf"
+        response = requests.get(
+            f"https://www.fastweb.it/myfastweb-energia/bollette/download/{invoice.id}-{invoice.doc_date}.pdf",
+            cookies=self.get_cookies(),
         )
 
         if response.status_code != 200:
