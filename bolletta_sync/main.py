@@ -1,3 +1,4 @@
+import argparse
 import os
 from datetime import date, timedelta
 from enum import Enum
@@ -31,7 +32,7 @@ class Provider(Enum):
 
 
 class SyncParams(BaseModel):
-    providers: list[Provider] = [Provider.FASTWEB, Provider.FASTEWEB_ENERGIA]
+    providers: list[Provider] = list(Provider)
     start_date: date = date.today() - timedelta(days=10)
     end_date: date = date.today()
 
@@ -50,7 +51,8 @@ def sync(sync_params: SyncParams, google_credentials: Credentials, playwright: P
     if sync_params.end_date is None:
         sync_params.end_date = (sync_params.start_date + timedelta(days=31)).replace(day=1)
 
-    print(f"Syncing invoices from {sync_params.start_date} to {sync_params.end_date}")
+    print(f"Syncing invoices from {sync_params.start_date} to {sync_params.end_date}, "
+          f"providers: {list(map(lambda p: p.value, sync_params.providers))}")
 
     for provider in sync_params.providers:
         instance = None
@@ -62,7 +64,7 @@ def sync(sync_params: SyncParams, google_credentials: Credentials, playwright: P
         elif provider == Provider.ENI:
             instance = Eni()
         elif provider == Provider.UMBRA_ACQUE:
-            instance = UmbraAcque()
+            instance = UmbraAcque(google_credentials, playwright)
 
         if instance is None:
             raise Exception("Unknown provider")
@@ -110,6 +112,19 @@ def google_auth():
 def main():
     google_credentials = get_google_credentials()
     params = SyncParams()
+
+    parser = argparse.ArgumentParser(description='Sync invoices from providers')
+    parser.add_argument('--start_date', type=str, help='Start date in format YYYY-MM-DD')
+    parser.add_argument('--end_date', type=str, help='End date in format YYYY-MM-DD')
+    parser.add_argument('--providers', nargs='+', type=Provider, help='List of providers to sync')
+    args = parser.parse_args()
+
+    if args.start_date:
+        params.start_date = date.fromisoformat(args.start_date)
+    if args.end_date:
+        params.end_date = date.fromisoformat(args.end_date)
+    if args.providers:
+        params.providers = args.providers
 
     with sync_playwright() as playwright:
         sync(params, google_credentials, playwright)
