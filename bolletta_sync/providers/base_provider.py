@@ -4,7 +4,10 @@ from io import BytesIO
 
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
+from playwright.sync_api import Playwright
 from pydantic import BaseModel
+
+from bolletta_sync.main import DEV_MODE
 
 
 class Invoice(BaseModel):
@@ -16,9 +19,9 @@ class Invoice(BaseModel):
 
 
 class BaseProvider(ABC):
-    def __init__(self, google_credentials, logger, namespace: str):
+    def __init__(self, google_credentials, playwright: Playwright, namespace: str):
         self._google_credentials = google_credentials
-        self._logger = logger
+        self._browser = playwright.chromium.launch(headless=DEV_MODE == False).new_context()
         self._namespace = namespace
         self.namespace_folder_id = None
         self.namespace_tasklist_id = None
@@ -26,7 +29,13 @@ class BaseProvider(ABC):
         self.drive_service = build("drive", "v3", credentials=self._google_credentials, cache_discovery=False)
         self.tasks_service = build("tasks", "v1", credentials=self._google_credentials, cache_discovery=False)
 
-    async def _create_folder(self, folder_name: str, parent_folder_id: str = None) -> str:
+    def get_cookies(self) -> dict:
+        cookies = {}
+        for cookie in self._browser.cookies():
+            cookies[cookie['name']] = cookie['value']
+        return cookies
+
+    def _create_folder(self, folder_name: str, parent_folder_id: str = None) -> str:
         query = f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
         if parent_folder_id:
             query += f" and '{parent_folder_id}' in parents"
@@ -49,11 +58,11 @@ class BaseProvider(ABC):
 
         return folder.get('id')
 
-    async def check_namespace(self) -> bool:
+    def check_namespace(self) -> bool:
         # google drive
-        bollette_folder_id = await self._create_folder("bollette")
-        year_folder_id = await self._create_folder(str(date.today().year), bollette_folder_id)
-        self.namespace_folder_id = await self._create_folder(self._namespace, year_folder_id)
+        bollette_folder_id = self._create_folder("bollette")
+        year_folder_id = self._create_folder(str(date.today().year), bollette_folder_id)
+        self.namespace_folder_id = self._create_folder(self._namespace, year_folder_id)
 
         # google tasks
         tasklist_name = "Bollette"
@@ -69,19 +78,19 @@ class BaseProvider(ABC):
 
         return True
 
-    async def get_invoices(self, start_date: date, end_date: date) -> list[Invoice]:
+    def get_invoices(self, start_date: date, end_date: date) -> list[Invoice]:
         """
         return the invoices from the provider
         """
         raise Exception("get invoices not implemented")
 
-    async def download_invoice(self, invoice: Invoice) -> bytes:
+    def download_invoice(self, invoice: Invoice) -> bytes:
         """
         download the invoice from the provider
         """
         raise Exception("download invoice not implemented")
 
-    async def save_invoice(self, invoice: Invoice, invoice_pdf: bytes) -> bool:
+    def save_invoice(self, invoice: Invoice, invoice_pdf: bytes) -> bool:
         """
         save the invoice to google drive
         """
@@ -91,7 +100,7 @@ class BaseProvider(ABC):
             spaces='drive'
         ).execute()
         if results.get('files'):
-            self._logger.info(f"file {file_name} already exists in google drive")
+            print(f"file {file_name} already exists in google drive")
             return True
 
         file_metadata = {
@@ -105,11 +114,11 @@ class BaseProvider(ABC):
             fields="id"
         ).execute()
 
-        self._logger.info(f"create file {file_name} in google drive")
+        print(f"create file {file_name} in google drive")
 
         return True
 
-    async def set_expire_invoice(self, invoice: Invoice) -> bool:
+    def set_expire_invoice(self, invoice: Invoice) -> bool:
         """
         set expire invoice to google tasks
         """
@@ -117,7 +126,7 @@ class BaseProvider(ABC):
         tasks = self.tasks_service.tasks().list(tasklist=self.namespace_tasklist_id).execute()
         for task in tasks.get('items', []):
             if task['title'] == task_title:
-                self._logger.info(f"task for invoice {invoice.id} already exists")
+                print(f"task for invoice {invoice.id} already exists")
                 return True
 
         task_metadata = {
@@ -127,6 +136,6 @@ class BaseProvider(ABC):
         }
         task = self.tasks_service.tasks().insert(tasklist=self.namespace_tasklist_id, body=task_metadata).execute()
 
-        self._logger.info(f"created task for invoice {invoice.id}")
+        print(f"created task for invoice {invoice.id}")
 
         return True
