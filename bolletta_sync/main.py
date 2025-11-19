@@ -31,7 +31,7 @@ class Provider(Enum):
 
 
 class SyncParams(BaseModel):
-    providers: list[Provider] = [Provider.FASTWEB]
+    providers: list[Provider] = [Provider.FASTWEB, Provider.FASTEWEB_ENERGIA]
     start_date: date = date.today() - timedelta(days=10)
     end_date: date = date.today()
 
@@ -58,7 +58,7 @@ def sync(sync_params: SyncParams, google_credentials: Credentials, playwright: P
         if provider == Provider.FASTWEB:
             instance = Fastweb(google_credentials, playwright)
         elif provider == Provider.FASTEWEB_ENERGIA:
-            instance = FastwebEnergia(google_credentials)
+            instance = FastwebEnergia(google_credentials, playwright)
         elif provider == Provider.ENI:
             instance = Eni()
         elif provider == Provider.UMBRA_ACQUE:

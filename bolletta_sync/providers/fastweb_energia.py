@@ -2,37 +2,29 @@ import os
 from datetime import date
 
 import requests
-from bs4 import BeautifulSoup
+from playwright.sync_api import Playwright
 
 from bolletta_sync.providers.base_provider import BaseProvider, Invoice
 
 
 class FastwebEnergia(BaseProvider):
-    def __init__(self, google_credentials):
-        super().__init__(google_credentials, "fastweb_energia")
+    def __init__(self, google_credentials, playwright: Playwright):
+        super().__init__(google_credentials, playwright, "fastweb_energia")
         self._session = requests.Session()
 
     def _login_fastweb_energia(self):
-        self._session.cookies.clear()
-        response = self._session.get("https://www.fastweb.it/myfastweb-energia/login/")
-        soup = BeautifulSoup(response.text, "html.parser")
+        page = self._browser.new_page()
+        page.goto("https://www.fastweb.it/myfastweb-energia/login/")
 
-        security_token = soup.find("input", {"name": "securityToken"}).get("value")
-        payload = {
-            "securityToken": security_token,
-            "DirectLink": "/myfastweb-energia/",
-            "username": os.getenv("FASTWEB_ENERGIA_USERNAME"),
-            "password": os.getenv("FASTWEB_ENERGIA_PASSWORD"),
-            "g-recaptcha-response": "",
-            "g-recaptcha-response-unified": "",
-        }
-        response = self._session.post(
-            "https://www.fastweb.it/myfastweb-energia/login/ajax/",
-            data=payload,
-        )
-        response_body = dict(response.json())
-        if response_body.get("errorCode") != 0:
-            raise Exception("login failed")
+        page.locator("iframe[title=\"Cookie center\"]").content_frame.get_by_role("button",
+                                                                                  name="Accetta tutti").click()
+
+        page.get_by_placeholder("username").click()
+        page.get_by_role("textbox", name="username").fill(os.getenv("FASTWEB_ENERGIA_USERNAME"))
+        page.get_by_placeholder("password").click()
+        page.get_by_role("textbox", name="password").fill(os.getenv("FASTWEB_ENERGIA_PASSWORD"))
+        with page.expect_navigation():
+            page.get_by_role("link", name="Accedi").click()
 
     def get_invoices(self, start_date: date, end_date: date) -> list[Invoice]:
         invoices: list[Invoice] = []
@@ -42,7 +34,8 @@ class FastwebEnergia(BaseProvider):
         payload = {"action": "loadInvoiceList"}
         response = self._session.post(
             "https://www.fastweb.it/myfastweb-energia/services/invoices/",
-            payload
+            payload,
+            cookies=self.get_cookies(),
         )
 
         invoice_list = list(
