@@ -12,7 +12,7 @@ class FastwebEnergia(BaseProvider):
         super().__init__(google_credentials, playwright, "fastweb_energia")
 
     def _login_fastweb_energia(self):
-        page = self._browser.new_page()
+        page = self.browser.new_page()
         page.goto("https://www.fastweb.it/myfastweb-energia/login/")
 
         page.locator("iframe[title=\"Cookie center\"]").content_frame.get_by_role("button",

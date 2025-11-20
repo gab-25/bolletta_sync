@@ -16,7 +16,7 @@ class Fastweb(BaseProvider):
         self.client_codes = os.getenv("FASTWEB_CLIENT_CODE").split(",")
 
     def _login_fastweb(self):
-        page = self._browser.new_page()
+        page = self.browser.new_page()
         page.goto("https://fastweb.it/myfastweb/accesso/login/")
 
         page.locator("iframe[title=\"Cookie center\"]").content_frame.get_by_role("button",
@@ -30,7 +30,7 @@ class Fastweb(BaseProvider):
             page.get_by_role("link", name="Accedi").click()
 
     def _select_profile(self, client_code: str):
-        page = self._browser.pages[0]
+        page = self.browser.pages[0]
         page.goto("https://fastweb.it/myfastweb/accesso/seleziona-codice-cliente/")
 
         try:

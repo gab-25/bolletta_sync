@@ -15,7 +15,7 @@ class UmbraAcque(BaseProvider):
         super().__init__(google_credentials, playwright, "umbra_acque")
 
     def _login_umbra_acque(self):
-        page = self._browser.new_page()
+        page = self.browser.new_page()
         page.goto("https://self-service.umbraacque.com/umbraacque/login/")
 
         page.get_by_role("button", name="Accetta tutti i cookie").click()
