@@ -15,18 +15,17 @@ class UmbraAcque(BaseProvider):
         super().__init__(google_credentials, playwright, "umbra_acque")
 
     def _login_umbra_acque(self):
-        page = self.browser.new_page()
-        page.goto("https://self-service.umbraacque.com/umbraacque/login/")
+        self.page.goto("https://self-service.umbraacque.com/umbraacque/login/")
 
-        page.get_by_role("button", name="Accetta tutti i cookie").click()
+        self.page.get_by_role("button", name="Accetta tutti i cookie").click()
 
-        page.get_by_role("textbox", name="Indirizzo email").click()
-        page.get_by_role("textbox", name="Indirizzo email").fill(os.getenv("UMBRA_ACQUE_USERNAME"))
-        page.get_by_role("textbox", name="Password").click()
-        page.get_by_role("textbox", name="Password").fill(os.getenv("UMBRA_ACQUE_PASSWORD"))
+        self.page.get_by_role("textbox", name="Indirizzo email").click()
+        self.page.get_by_role("textbox", name="Indirizzo email").fill(os.getenv("UMBRA_ACQUE_USERNAME"))
+        self.page.get_by_role("textbox", name="Password").click()
+        self.page.get_by_role("textbox", name="Password").fill(os.getenv("UMBRA_ACQUE_PASSWORD"))
 
-        with page.expect_navigation():
-            page.get_by_role("button", name="ACCEDI").click()
+        with self.page.expect_navigation():
+            self.page.get_by_role("button", name="ACCEDI").click()
 
     def get_invoices(self, start_date: date, end_date: date) -> list[Invoice]:
         invoices: list[Invoice] = []

@@ -21,7 +21,8 @@ class Invoice(BaseModel):
 class BaseProvider(ABC):
     def __init__(self, google_credentials, playwright: Playwright, namespace: str):
         self._google_credentials = google_credentials
-        self.browser = playwright.chromium.launch(headless=DEV_MODE == False).new_context()
+        self._browser = playwright.chromium.launch(headless=DEV_MODE == False).new_context()
+        self.page = self._browser.new_page()
         self._namespace = namespace
         self.namespace_folder_id = None
         self.namespace_tasklist_id = None
@@ -31,7 +32,7 @@ class BaseProvider(ABC):
 
     def get_cookies(self) -> dict:
         cookies = {}
-        for cookie in self.browser.cookies():
+        for cookie in self._browser.cookies():
             cookies[cookie['name']] = cookie['value']
         return cookies
 

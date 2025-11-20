@@ -12,18 +12,17 @@ class FastwebEnergia(BaseProvider):
         super().__init__(google_credentials, playwright, "fastweb_energia")
 
     def _login_fastweb_energia(self):
-        page = self.browser.new_page()
-        page.goto("https://www.fastweb.it/myfastweb-energia/login/")
+        self.page.goto("https://www.fastweb.it/myfastweb-energia/login/")
 
-        page.locator("iframe[title=\"Cookie center\"]").content_frame.get_by_role("button",
+        self.page.locator("iframe[title=\"Cookie center\"]").content_frame.get_by_role("button",
                                                                                   name="Accetta tutti").click()
 
-        page.get_by_placeholder("username").click()
-        page.get_by_role("textbox", name="username").fill(os.getenv("FASTWEB_ENERGIA_USERNAME"))
-        page.get_by_placeholder("password").click()
-        page.get_by_role("textbox", name="password").fill(os.getenv("FASTWEB_ENERGIA_PASSWORD"))
-        with page.expect_navigation():
-            page.get_by_role("link", name="Accedi").click()
+        self.page.get_by_placeholder("username").click()
+        self.page.get_by_role("textbox", name="username").fill(os.getenv("FASTWEB_ENERGIA_USERNAME"))
+        self.page.get_by_placeholder("password").click()
+        self.page.get_by_role("textbox", name="password").fill(os.getenv("FASTWEB_ENERGIA_PASSWORD"))
+        with self.page.expect_navigation():
+            self.page.get_by_role("link", name="Accedi").click()
 
     def get_invoices(self, start_date: date, end_date: date) -> list[Invoice]:
         invoices: list[Invoice] = []
