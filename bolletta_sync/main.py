@@ -10,9 +10,9 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from playwright.sync_api import Playwright, sync_playwright
 from pydantic import BaseModel, model_validator
 
-DEV_MODE = os.environ.get("DEV_MODE") == "true"
-if DEV_MODE:
-    load_dotenv()
+DEV_MODE = os.getenv("DEV_MODE") == "true"
+dotenv_path = os.path.expanduser("~/.bolletta_sync") if not DEV_MODE else ".env"
+load_dotenv(dotenv_path=dotenv_path)
 
 from bolletta_sync.providers.eni import Eni
 from bolletta_sync.providers.fastweb import Fastweb
@@ -62,7 +62,7 @@ def sync(sync_params: SyncParams, google_credentials: Credentials, playwright: P
         elif provider == Provider.FASTEWEB_ENERGIA:
             instance = FastwebEnergia(google_credentials, playwright)
         elif provider == Provider.ENI:
-            instance = Eni()
+            instance = Eni(google_credentials, playwright)
         elif provider == Provider.UMBRA_ACQUE:
             instance = UmbraAcque(google_credentials, playwright)
 
