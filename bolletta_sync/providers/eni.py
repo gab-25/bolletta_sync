@@ -11,6 +11,7 @@ from bolletta_sync.providers.base_provider import BaseProvider, Invoice
 class Eni(BaseProvider):
     def __init__(self, google_credentials, playwright: Playwright):
         super().__init__(google_credentials, playwright, "eni")
+        self.account_code = None
 
     def _login_eni(self):
         self.page.goto("https://eniplenitude.com/my-eni/")
@@ -35,37 +36,34 @@ class Eni(BaseProvider):
         self._login_eni()
 
         response = requests.get(
-            "https://api.eniplenitude.com/v1/contracts",
-            cookies=self.get_cookies()
-        )
+            "https://eniplenitude.com/serviceDAp/api/c360/init?logHash=wv5y2LVrjgcVRvW82WLEw3&channel=PORTAL",
+            cookies=self.get_cookies())
         response.raise_for_status()
-        contract_id = response.json()["contracts"][0]["id"]
+        self.account_code = response.json()["codiceContoDefault"]
+        client_code = response.json()["codiceCliente"]
 
         response = requests.get(
-            f"https://api.eniplenitude.com/v1/invoices/{contract_id}",
-            params={
-                "from": start_date.strftime("%Y-%m-%d"),
-                "to": end_date.strftime("%Y-%m-%d")
-            },
+            f"https://eniplenitude.com/serviceDAp/c360/api/conti/{self.account_code}/bollette?logHash=8yVXbTfuaHIvAS5PvRHgnp&channel=PORTAL",
             cookies=self.get_cookies()
         )
         response.raise_for_status()
-
-        for inv in response.json()["invoices"]:
-            invoice = Invoice(
-                id=inv["number"],
-                doc_date=datetime.strptime(inv["date"], "%Y-%m-%d"),
-                due_date=datetime.strptime(inv["dueDate"], "%Y-%m-%d"),
-                amount=float(inv["amount"]),
-                client_code=contract_id
-            )
-            invoices.append(invoice)
+        invoice_list = list(
+            map(lambda i: Invoice(id=i["numeroBolletta"],
+                                  doc_date=datetime.strptime(i["emissione"], "%d/%m/%Y"),
+                                  due_date=datetime.strptime(i["scadenza"], "%d/%m/%Y"),
+                                  amount=i["importo"],
+                                  client_code=client_code),
+                response.json()["bollette"]))
+        invoice_list_filtered = list(
+            filter(lambda invoice: start_date <= invoice.doc_date <= end_date, invoice_list))
+        if invoice_list_filtered:
+            invoices.extend(invoice_list_filtered)
 
         return invoices
 
     def download_invoice(self, invoice: Invoice) -> bytes:
         response = requests.get(
-            f"https://api.eniplenitude.com/v1/invoices/{invoice.client_code}/{invoice.id}/pdf",
+            f"https://eniplenitude.com/serviceDAp/c360/api/conti/{self.account_code}/download-doc-pdf?numeroFattura={invoice.id}&logHash=0golQ74cfqlmjhg1O5pHyn&channel=PORTAL",
             cookies=self.get_cookies()
         )
 
