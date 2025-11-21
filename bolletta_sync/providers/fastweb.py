@@ -16,27 +16,25 @@ class Fastweb(BaseProvider):
         self.client_codes = os.getenv("FASTWEB_CLIENT_CODE").split(",")
 
     def _login_fastweb(self):
-        page = self._browser.new_page()
-        page.goto("https://fastweb.it/myfastweb/accesso/login/")
+        self.page.goto("https://fastweb.it/myfastweb/accesso/login/")
 
-        page.locator("iframe[title=\"Cookie center\"]").content_frame.get_by_role("button",
+        self.page.locator("iframe[title=\"Cookie center\"]").content_frame.get_by_role("button",
                                                                                   name="Accetta tutti").click()
 
-        page.get_by_placeholder("username").click()
-        page.get_by_role("textbox", name="username").fill(os.getenv("FASTWEB_USERNAME"))
-        page.get_by_placeholder("password").click()
-        page.get_by_role("textbox", name="password").fill(os.getenv("FASTWEB_PASSWORD"))
-        with page.expect_navigation():
-            page.get_by_role("link", name="Accedi").click()
+        self.page.get_by_placeholder("username").click()
+        self.page.get_by_role("textbox", name="username").fill(os.getenv("FASTWEB_USERNAME"))
+        self.page.get_by_placeholder("password").click()
+        self.page.get_by_role("textbox", name="password").fill(os.getenv("FASTWEB_PASSWORD"))
+        with self.page.expect_navigation():
+            self.page.get_by_role("link", name="Accedi").click()
 
     def _select_profile(self, client_code: str):
-        page = self._browser.pages[0]
-        page.goto("https://fastweb.it/myfastweb/accesso/seleziona-codice-cliente/")
+        self.page.goto("https://fastweb.it/myfastweb/accesso/seleziona-codice-cliente/")
 
         try:
-            page.get_by_text(client_code).click()
-            with page.expect_navigation():
-                page.get_by_role("link", name="Avanti").click()
+            self.page.get_by_text(client_code).click()
+            with self.page.expect_navigation():
+                self.page.get_by_role("link", name="Avanti").click()
         except:
             raise Exception("invalid client code")
 
