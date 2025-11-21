@@ -91,9 +91,11 @@ def get_google_credentials() -> Credentials:
     if os.path.exists(google_token_file):
         google_credentials = Credentials.from_authorized_user_file(google_token_file, google_auth_scopes)
     else:
+        print("Google credentials not found, starting Google OAuth flow")
         google_auth()
 
     if google_credentials and google_credentials.expired:
+        print("Google credentials expired, refreshing")
         google_credentials.refresh(AuthRequest())
 
     return google_credentials
@@ -105,8 +107,6 @@ def google_auth():
 
     with open(google_token_file, "w") as token:
         token.write(credentials.to_json())
-
-    print("Google OAuth flow completed successfully")
 
 
 def main():
