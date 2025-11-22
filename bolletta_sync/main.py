@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import os
 from datetime import date, timedelta
 from enum import Enum
@@ -32,9 +33,9 @@ class Provider(Enum):
 
 
 class SyncParams(BaseModel):
-    providers: list[Provider] = list(Provider)
-    start_date: date = date.today() - timedelta(days=10)
-    end_date: date = date.today()
+    provider: Provider
+    start_date: date
+    end_date: date
 
     @model_validator(mode="after")
     def validate_year(self):
@@ -43,45 +44,36 @@ class SyncParams(BaseModel):
         return self
 
 
-async def sync(sync_params: SyncParams, google_credentials: Credentials, brower: Browser):
-    if sync_params.providers is None:
-        sync_params.providers = list(Provider)
-    if sync_params.start_date is None:
-        sync_params.start_date = date.today().replace(day=1)
-    if sync_params.end_date is None:
-        sync_params.end_date = (sync_params.start_date + timedelta(days=31)).replace(day=1)
+async def sync(params: SyncParams, google_credentials: Credentials, brower: Browser):
+    print(f"Syncing invoices from {params.start_date} to {params.end_date}, provider: {params.provider.value}")
 
-    print(f"Syncing invoices from {sync_params.start_date} to {sync_params.end_date}, "
-          f"providers: {list(map(lambda p: p.value, sync_params.providers))}")
+    page = await brower.new_page()
+    instance = None
 
-    for provider in sync_params.providers:
-        page = await brower.new_page()
-        instance = None
+    if params.provider == Provider.FASTWEB:
+        instance = Fastweb(google_credentials, page)
+    elif params.provider == Provider.FASTEWEB_ENERGIA:
+        instance = FastwebEnergia(google_credentials, page)
+    elif params.provider == Provider.ENI:
+        instance = Eni(google_credentials, page)
+    elif params.provider == Provider.UMBRA_ACQUE:
+        instance = UmbraAcque(google_credentials, page)
 
-        if provider == Provider.FASTWEB:
-            instance = Fastweb(google_credentials, page)
-        elif provider == Provider.FASTEWEB_ENERGIA:
-            instance = FastwebEnergia(google_credentials, page)
-        elif provider == Provider.ENI:
-            instance = Eni(google_credentials, page)
-        elif provider == Provider.UMBRA_ACQUE:
-            instance = UmbraAcque(google_credentials, page)
+    if instance is None:
+        raise Exception("Unknown provider")
 
-        if instance is None:
-            raise Exception("Unknown provider")
-
-        try:
-            print(f"Syncing invoices from {provider.value}")
-            invoces = await instance.get_invoices(sync_params.start_date, sync_params.end_date)
-            print(f"Synced {len(invoces)} invoices from {provider.value}")
-            await instance.check_namespace()
-            for invoce in invoces:
-                doc = await instance.download_invoice(invoce)
-                await instance.save_invoice(invoce, doc)
-                await instance.set_expire_invoice(invoce)
-        except Exception as e:
-            print(f"Error while syncing with {provider.value}", e)
-            raise e
+    try:
+        print(f"Syncing invoices from {params.provider.value}")
+        invoces = await instance.get_invoices(params.start_date, params.end_date)
+        print(f"Synced {len(invoces)} invoices from {params.provider.value}")
+        await instance.check_namespace()
+        for invoce in invoces:
+            doc = await instance.download_invoice(invoce)
+            await instance.save_invoice(invoce, doc)
+            await instance.set_expire_invoice(invoce)
+    except Exception as e:
+        print(f"Error while syncing with {params.provider.value}", e)
+        raise e
 
     return {"message": "invoices synced successfully"}
 
@@ -112,7 +104,6 @@ async def google_auth():
 
 async def main():
     google_credentials = await get_google_credentials()
-    params = SyncParams()
 
     parser = argparse.ArgumentParser(description='Sync invoices from providers')
     parser.add_argument('--start_date', type=str, help='Start date in format YYYY-MM-DD')
@@ -120,13 +111,14 @@ async def main():
     parser.add_argument('--providers', nargs='+', type=Provider, help='List of providers to sync')
     args = parser.parse_args()
 
-    if args.start_date:
-        params.start_date = date.fromisoformat(args.start_date)
-    if args.end_date:
-        params.end_date = date.fromisoformat(args.end_date)
-    if args.providers:
-        params.providers = args.providers
+    start_date = date.fromisoformat(args.start_date) if args.start_date else date.today() - timedelta(days=10)
+    end_date = date.fromisoformat(args.end_date) if args.end_date else date.today()
+    providers = args.providers if args.providers else list(Provider)
 
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=DEV_MODE == False)
-        await sync(params, google_credentials, browser)
+        tasks = []
+        for provider in providers:
+            params = SyncParams(provider=provider, start_date=start_date, end_date=end_date)
+            tasks.append(sync(params, google_credentials, browser))
+        await asyncio.gather(*tasks)
