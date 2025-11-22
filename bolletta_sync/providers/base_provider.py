@@ -7,6 +7,8 @@ from googleapiclient.http import MediaIoBaseUpload
 from playwright.async_api import Page
 from pydantic import BaseModel
 
+from bolletta_sync.main import logger
+
 
 class Invoice(BaseModel):
     id: str
@@ -98,7 +100,7 @@ class BaseProvider(ABC):
             spaces='drive'
         ).execute()
         if results.get('files'):
-            print(f"file {file_name} already exists in google drive")
+            logger.info(f"file {file_name} already exists in google drive")
             return True
 
         file_metadata = {
@@ -112,7 +114,7 @@ class BaseProvider(ABC):
             fields="id"
         ).execute()
 
-        print(f"create file {file_name} in google drive")
+        logger.info(f"create file {file_name} in google drive")
 
         return True
 
@@ -124,7 +126,7 @@ class BaseProvider(ABC):
         tasks = self.tasks_service.tasks().list(tasklist=self.namespace_tasklist_id).execute()
         for task in tasks.get('items', []):
             if task['title'] == task_title:
-                print(f"task for invoice {invoice.id} already exists")
+                logger.info(f"task for invoice {invoice.id} already exists")
                 return True
 
         task_metadata = {
@@ -134,6 +136,6 @@ class BaseProvider(ABC):
         }
         task = self.tasks_service.tasks().insert(tasklist=self.namespace_tasklist_id, body=task_metadata).execute()
 
-        print(f"created task for invoice {invoice.id}")
+        logger.info(f"created task for invoice {invoice.id}")
 
         return True

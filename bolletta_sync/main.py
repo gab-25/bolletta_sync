@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import logging
 import os
 from datetime import date, timedelta
 from enum import Enum
@@ -14,6 +15,9 @@ from pydantic import BaseModel, model_validator
 DEV_MODE = os.getenv("DEV_MODE") == "true"
 dotenv_path = os.path.expanduser("~/.bolletta_sync") if not DEV_MODE else ".env"
 load_dotenv(dotenv_path=dotenv_path)
+
+logger = logging.getLogger()
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] - %(message)s")
 
 from bolletta_sync.providers.eni import Eni
 from bolletta_sync.providers.fastweb import Fastweb
@@ -45,7 +49,7 @@ class SyncParams(BaseModel):
 
 
 async def sync(params: SyncParams, google_credentials: Credentials, brower: Browser):
-    print(f"Syncing invoices from {params.start_date} to {params.end_date}, provider: {params.provider.value}")
+    logger.info(f"{params.provider.value} - Syncing invoices from {params.start_date} to {params.end_date}")
 
     page = await brower.new_page()
     instance = None
@@ -63,19 +67,19 @@ async def sync(params: SyncParams, google_credentials: Credentials, brower: Brow
         raise Exception("Unknown provider")
 
     try:
-        print(f"Syncing invoices from {params.provider.value}")
+        logger.info(f"{params.provider.value} - Syncing invoices")
         invoces = await instance.get_invoices(params.start_date, params.end_date)
-        print(f"Synced {len(invoces)} invoices from {params.provider.value}")
+        logger.info(f"{params.provider.value} - Synced {len(invoces)} invoices")
         await instance.check_namespace()
         for invoce in invoces:
             doc = await instance.download_invoice(invoce)
             await instance.save_invoice(invoce, doc)
             await instance.set_expire_invoice(invoce)
     except Exception as e:
-        print(f"Error while syncing with {params.provider.value}", e)
+        logger.error(f"{params.provider.value} - Error while syncing with {params.provider.value}", e)
         raise e
 
-    return {"message": "invoices synced successfully"}
+    logger.info(f"{params.provider.value} - Invoices synced successfully")
 
 
 async def get_google_credentials() -> Credentials:
@@ -84,11 +88,11 @@ async def get_google_credentials() -> Credentials:
     if os.path.exists(google_token_file):
         google_credentials = Credentials.from_authorized_user_file(google_token_file, google_auth_scopes)
     else:
-        print("Google credentials not found, starting Google OAuth flow")
+        logger.info("Google credentials not found, starting Google OAuth flow")
         await google_auth()
 
     if google_credentials and google_credentials.expired:
-        print("Google credentials expired, refreshing")
+        logger.info("Google credentials expired, refreshing")
         google_credentials.refresh(AuthRequest())
 
     return google_credentials
