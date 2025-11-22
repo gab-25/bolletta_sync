@@ -1,4 +1,3 @@
-import argparse
 import asyncio
 import logging
 import os
@@ -13,7 +12,10 @@ from playwright.async_api import async_playwright, Browser
 from pydantic import BaseModel, model_validator
 
 DEV_MODE = os.getenv("DEV_MODE") == "true"
-dotenv_path = os.path.expanduser("~/.bolletta_sync") if not DEV_MODE else ".env"
+
+base_folder = os.path.expanduser("~/.bolletta_sync") if not DEV_MODE else "."
+
+dotenv_path = os.path.join(base_folder, "settings")
 load_dotenv(dotenv_path=dotenv_path)
 
 logger = logging.getLogger()
@@ -25,8 +27,8 @@ from bolletta_sync.providers.fastweb_energia import FastwebEnergia
 from bolletta_sync.providers.umbra_acque import UmbraAcque
 
 google_auth_scopes = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/tasks"]
-google_credentials_file = "./google_credentials.json"
-google_token_file = "./google_token.json"
+google_credentials_file = os.path.join(base_folder, "./google_credentials.json")
+google_token_file = os.path.join(base_folder, "./google_token.json")
 
 
 class Provider(Enum):
@@ -106,18 +108,12 @@ async def google_auth():
         token.write(credentials.to_json())
 
 
-async def main():
+async def main(providers: list[Provider] = None, start_date: date = None, end_date: date = None):
     google_credentials = await get_google_credentials()
 
-    parser = argparse.ArgumentParser(description='Sync invoices from providers')
-    parser.add_argument('--start_date', type=str, help='Start date in format YYYY-MM-DD')
-    parser.add_argument('--end_date', type=str, help='End date in format YYYY-MM-DD')
-    parser.add_argument('--providers', nargs='+', type=Provider, help='List of providers to sync')
-    args = parser.parse_args()
-
-    start_date = date.fromisoformat(args.start_date) if args.start_date else date.today() - timedelta(days=10)
-    end_date = date.fromisoformat(args.end_date) if args.end_date else date.today()
-    providers = args.providers if args.providers else list(Provider)
+    start_date = start_date if start_date else date.today() - timedelta(days=10)
+    end_date = end_date if end_date else date.today()
+    providers = providers if providers else list(Provider)
 
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=DEV_MODE == False)
