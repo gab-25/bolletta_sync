@@ -44,7 +44,7 @@ class Fastweb(BaseProvider):
         await self._login_fastweb()
 
         for client_code in self.client_codes:
-            print(f"getting invoices for client {client_code}")
+            print(f"getting invoices for client {client_code} from fastweb")
             await self._select_profile(client_code)
 
             response = requests.get("https://fastweb.it/myfastweb/abbonamento/le-mie-fatture/",
