@@ -118,8 +118,12 @@ class MainWindow(QWidget):
         self.log_area.clear()
 
         def run_process():
-            asyncio.run(main(selected_providers, selected_start_date, selected_end_date))
-            self.sync_finished.emit()
+            try:
+                asyncio.run(main(selected_providers, selected_start_date, selected_end_date))
+            except Exception as e:
+                logger.error(f"Error during sync: {e}")
+            finally:
+                self.sync_finished.emit()
 
         Thread(target=run_process, daemon=True).start()
 
