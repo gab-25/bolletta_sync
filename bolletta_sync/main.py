@@ -12,7 +12,10 @@ from playwright.async_api import async_playwright, Browser
 from pydantic import BaseModel, model_validator
 
 DEV_MODE = os.getenv("DEV_MODE") == "true"
-dotenv_path = os.path.expanduser("~/.bolletta_sync") if not DEV_MODE else ".env"
+
+base_folder = os.path.expanduser("~/.bolletta_sync") if not DEV_MODE else "."
+
+dotenv_path = os.path.join(base_folder, "settings")
 load_dotenv(dotenv_path=dotenv_path)
 
 logger = logging.getLogger()
@@ -24,8 +27,8 @@ from bolletta_sync.providers.fastweb_energia import FastwebEnergia
 from bolletta_sync.providers.umbra_acque import UmbraAcque
 
 google_auth_scopes = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/tasks"]
-google_credentials_file = "./google_credentials.json"
-google_token_file = "./google_token.json"
+google_credentials_file = os.path.join(base_folder, "./google_credentials.json")
+google_token_file = os.path.join(base_folder, "./google_token.json")
 
 
 class Provider(Enum):
