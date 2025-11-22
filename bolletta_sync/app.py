@@ -2,27 +2,39 @@ import asyncio
 import sys
 from datetime import date
 from logging import StreamHandler
+from threading import Thread
 
-from PySide6.QtCore import QDate
+from PySide6.QtCore import QDate, QObject, Signal
 from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QDateEdit, QCheckBox, QPushButton, QTextEdit,
                                QLabel, QGroupBox, QFormLayout)
 
 from bolletta_sync.main import Provider, main, logger
 
 
+class LogSignaler(QObject):
+    new_msg = Signal(str)
+
+
 class QTextEditHandler(StreamHandler):
     def __init__(self, text_widget: QTextEdit):
         StreamHandler.__init__(self)
-        self.text_widget = text_widget
+        self.setFormatter(logger.handlers[0].formatter)
+        self.signaler = LogSignaler()
+        self.signaler.new_msg.connect(text_widget.append)
 
     def emit(self, record):
-        self.text_widget.append(record.msg)
-        self.text_widget.repaint()
+        msg = self.format(record)
+        self.signaler.new_msg.emit(msg)
 
 
 class MainWindow(QWidget):
+    sync_finished = Signal()
+
     def __init__(self):
         super().__init__()
+
+        self.is_syncing = False
+        self.sync_finished.connect(self.on_sync_finished)
 
         self.setWindowTitle("Bolletta Sync")
         self.resize(800, 700)
@@ -80,12 +92,23 @@ class MainWindow(QWidget):
 
         self.validate_form()
 
+    def on_sync_finished(self):
+        self.is_syncing = False
+        self.validate_form()
+
     def validate_form(self):
+        if self.is_syncing:
+            self.btn_sync.setEnabled(False)
+            return
+
         is_date_valid = self.end_date.date() > self.start_date.date()
         is_provider_selected = any(cb.isChecked() for cb in self.cb_providers.values())
         self.btn_sync.setEnabled(is_date_valid and is_provider_selected)
 
     def exec_sync(self):
+        self.is_syncing = True
+        self.validate_form()
+
         selected_start_date: date = self.start_date.date().toPython()
         selected_end_date: date = self.end_date.date().toPython()
         selected_providers: list[Provider] = []
@@ -94,7 +117,11 @@ class MainWindow(QWidget):
 
         self.log_area.clear()
 
-        asyncio.run(main(selected_providers, selected_start_date, selected_end_date))
+        def run_process():
+            asyncio.run(main(selected_providers, selected_start_date, selected_end_date))
+            self.sync_finished.emit()
+
+        Thread(target=run_process, daemon=True).start()
 
 
 if __name__ == "__main__":
