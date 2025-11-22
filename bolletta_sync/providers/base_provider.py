@@ -4,10 +4,8 @@ from io import BytesIO
 
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
-from playwright.sync_api import Playwright
+from playwright.async_api import Page
 from pydantic import BaseModel
-
-from bolletta_sync.main import DEV_MODE
 
 
 class Invoice(BaseModel):
@@ -19,10 +17,9 @@ class Invoice(BaseModel):
 
 
 class BaseProvider(ABC):
-    def __init__(self, google_credentials, playwright: Playwright, namespace: str):
+    def __init__(self, google_credentials, page: Page, namespace: str):
         self._google_credentials = google_credentials
-        self._browser = playwright.chromium.launch(headless=DEV_MODE == False).new_context()
-        self.page = self._browser.new_page()
+        self.page = page
         self._namespace = namespace
         self.namespace_folder_id = None
         self.namespace_tasklist_id = None
@@ -30,9 +27,9 @@ class BaseProvider(ABC):
         self.drive_service = build("drive", "v3", credentials=self._google_credentials, cache_discovery=False)
         self.tasks_service = build("tasks", "v1", credentials=self._google_credentials, cache_discovery=False)
 
-    def get_cookies(self) -> dict:
+    async def get_cookies(self) -> dict:
         cookies = {}
-        for cookie in self._browser.cookies():
+        for cookie in await self.page.context.cookies():
             cookies[cookie['name']] = cookie['value']
         return cookies
 

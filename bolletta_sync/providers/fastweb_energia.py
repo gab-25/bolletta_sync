@@ -2,27 +2,27 @@ import os
 from datetime import date
 
 import requests
-from playwright.sync_api import Playwright
+from playwright.async_api import Page
 
 from bolletta_sync.providers.base_provider import BaseProvider, Invoice
 
 
 class FastwebEnergia(BaseProvider):
-    def __init__(self, google_credentials, playwright: Playwright):
-        super().__init__(google_credentials, playwright, "fastweb_energia")
+    def __init__(self, google_credentials, page: Page):
+        super().__init__(google_credentials, page, "fastweb_energia")
 
     async def _login_fastweb_energia(self):
-        self.page.goto("https://www.fastweb.it/myfastweb-energia/login/")
+        await self.page.goto("https://www.fastweb.it/myfastweb-energia/login/")
 
-        self.page.locator("iframe[title=\"Cookie center\"]").content_frame.get_by_role("button",
-                                                                                  name="Accetta tutti").click()
+        await self.page.locator("iframe[title=\"Cookie center\"]").content_frame.get_by_role("button",
+                                                                                             name="Accetta tutti").click()
 
-        self.page.get_by_placeholder("username").click()
-        self.page.get_by_role("textbox", name="username").fill(os.getenv("FASTWEB_ENERGIA_USERNAME"))
-        self.page.get_by_placeholder("password").click()
-        self.page.get_by_role("textbox", name="password").fill(os.getenv("FASTWEB_ENERGIA_PASSWORD"))
-        with self.page.expect_navigation():
-            self.page.get_by_role("link", name="Accedi").click()
+        await self.page.get_by_placeholder("username").click()
+        await self.page.get_by_role("textbox", name="username").fill(os.getenv("FASTWEB_ENERGIA_USERNAME"))
+        await self.page.get_by_placeholder("password").click()
+        await self.page.get_by_role("textbox", name="password").fill(os.getenv("FASTWEB_ENERGIA_PASSWORD"))
+        async with self.page.expect_navigation():
+            await self.page.get_by_role("link", name="Accedi").click()
 
     async def get_invoices(self, start_date: date, end_date: date) -> list[Invoice]:
         invoices: list[Invoice] = []
@@ -33,7 +33,7 @@ class FastwebEnergia(BaseProvider):
         response = requests.post(
             "https://www.fastweb.it/myfastweb-energia/services/invoices/",
             payload,
-            cookies=self.get_cookies(),
+            cookies=await self.get_cookies(),
         )
 
         invoice_list = list(
@@ -50,7 +50,7 @@ class FastwebEnergia(BaseProvider):
     async def download_invoice(self, invoice: Invoice) -> bytes:
         response = requests.get(
             f"https://www.fastweb.it/myfastweb-energia/bollette/download/{invoice.id}-{invoice.doc_date}.pdf",
-            cookies=self.get_cookies(),
+            cookies=await self.get_cookies(),
         )
 
         if response.status_code != 200:

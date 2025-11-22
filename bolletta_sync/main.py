@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from google.auth.transport.requests import Request as AuthRequest
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
-from playwright.sync_api import Playwright, sync_playwright
+from playwright.async_api import async_playwright, Browser
 from pydantic import BaseModel, model_validator
 
 DEV_MODE = os.getenv("DEV_MODE") == "true"
@@ -43,7 +43,7 @@ class SyncParams(BaseModel):
         return self
 
 
-async def sync(sync_params: SyncParams, google_credentials: Credentials, playwright: Playwright):
+async def sync(sync_params: SyncParams, google_credentials: Credentials, brower: Browser):
     if sync_params.providers is None:
         sync_params.providers = list(Provider)
     if sync_params.start_date is None:
@@ -55,29 +55,30 @@ async def sync(sync_params: SyncParams, google_credentials: Credentials, playwri
           f"providers: {list(map(lambda p: p.value, sync_params.providers))}")
 
     for provider in sync_params.providers:
+        page = await brower.new_page()
         instance = None
 
         if provider == Provider.FASTWEB:
-            instance = Fastweb(google_credentials, playwright)
+            instance = Fastweb(google_credentials, page)
         elif provider == Provider.FASTEWEB_ENERGIA:
-            instance = FastwebEnergia(google_credentials, playwright)
+            instance = FastwebEnergia(google_credentials, page)
         elif provider == Provider.ENI:
-            instance = Eni(google_credentials, playwright)
+            instance = Eni(google_credentials, page)
         elif provider == Provider.UMBRA_ACQUE:
-            instance = UmbraAcque(google_credentials, playwright)
+            instance = UmbraAcque(google_credentials, page)
 
         if instance is None:
             raise Exception("Unknown provider")
 
         try:
             print(f"Syncing invoices from {provider.value}")
-            invoces = instance.get_invoices(sync_params.start_date, sync_params.end_date)
+            invoces = await instance.get_invoices(sync_params.start_date, sync_params.end_date)
             print(f"Synced {len(invoces)} invoices from {provider.value}")
-            instance.check_namespace()
+            await instance.check_namespace()
             for invoce in invoces:
-                doc = instance.download_invoice(invoce)
-                instance.save_invoice(invoce, doc)
-                instance.set_expire_invoice(invoce)
+                doc = await instance.download_invoice(invoce)
+                await instance.save_invoice(invoce, doc)
+                await instance.set_expire_invoice(invoce)
         except Exception as e:
             print(f"Error while syncing with {provider.value}", e)
             raise e
@@ -126,5 +127,6 @@ async def main():
     if args.providers:
         params.providers = args.providers
 
-    with sync_playwright() as playwright:
-        await sync(params, google_credentials, playwright)
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=DEV_MODE == False)
+        await sync(params, google_credentials, browser)

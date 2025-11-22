@@ -3,38 +3,38 @@ from datetime import date
 
 import requests
 from bs4 import BeautifulSoup
-from playwright.sync_api import Playwright
+from playwright.async_api import Page
 
 from bolletta_sync.providers.base_provider import BaseProvider, Invoice
 
 
 class Fastweb(BaseProvider):
-    def __init__(self, google_credentials, playwright: Playwright):
-        super().__init__(google_credentials, playwright, "fastweb")
+    def __init__(self, google_credentials, page: Page):
+        super().__init__(google_credentials, page, "fastweb")
         if os.getenv("FASTWEB_CLIENT_CODE") is None:
             raise Exception("FASTWEB_CLIENT_CODE not set")
         self.client_codes = os.getenv("FASTWEB_CLIENT_CODE").split(",")
 
     async def _login_fastweb(self):
-        self.page.goto("https://fastweb.it/myfastweb/accesso/login/")
+        await self.page.goto("https://fastweb.it/myfastweb/accesso/login/")
 
-        self.page.locator("iframe[title=\"Cookie center\"]").content_frame.get_by_role("button",
-                                                                                  name="Accetta tutti").click()
+        await self.page.locator("iframe[title=\"Cookie center\"]").content_frame.get_by_role("button",
+                                                                                             name="Accetta tutti").click()
 
-        self.page.get_by_placeholder("username").click()
-        self.page.get_by_role("textbox", name="username").fill(os.getenv("FASTWEB_USERNAME"))
-        self.page.get_by_placeholder("password").click()
-        self.page.get_by_role("textbox", name="password").fill(os.getenv("FASTWEB_PASSWORD"))
-        with self.page.expect_navigation():
-            self.page.get_by_role("link", name="Accedi").click()
+        await self.page.get_by_placeholder("username").click()
+        await self.page.get_by_role("textbox", name="username").fill(os.getenv("FASTWEB_USERNAME"))
+        await self.page.get_by_placeholder("password").click()
+        await self.page.get_by_role("textbox", name="password").fill(os.getenv("FASTWEB_PASSWORD"))
+        async with self.page.expect_navigation():
+            await self.page.get_by_role("link", name="Accedi").click()
 
     async def _select_profile(self, client_code: str):
-        self.page.goto("https://fastweb.it/myfastweb/accesso/seleziona-codice-cliente/")
+        await self.page.goto("https://fastweb.it/myfastweb/accesso/seleziona-codice-cliente/")
 
         try:
-            self.page.get_by_text(client_code).click()
-            with self.page.expect_navigation():
-                self.page.get_by_role("link", name="Avanti").click()
+            await self.page.get_by_text(client_code).click()
+            async with self.page.expect_navigation():
+                await self.page.get_by_role("link", name="Avanti").click()
         except:
             raise Exception("invalid client code")
 
@@ -48,7 +48,7 @@ class Fastweb(BaseProvider):
             await self._select_profile(client_code)
 
             response = requests.get("https://fastweb.it/myfastweb/abbonamento/le-mie-fatture/",
-                                    cookies=self.get_cookies())
+                                    cookies=await self.get_cookies())
             soup = BeautifulSoup(response.text, "html.parser")
 
             security_token = soup.find("input", {"name": "securityToken"}).get("value")
@@ -57,7 +57,7 @@ class Fastweb(BaseProvider):
                 "https://fastweb.it/myfastweb/abbonamento/le-mie-fatture/ajax/index.php",
                 payload,
                 params={"action": "loadInvoiceList"},
-                cookies=self.get_cookies(),
+                cookies=await self.get_cookies(),
             )
 
             invoice_list = list(
@@ -75,7 +75,7 @@ class Fastweb(BaseProvider):
         await self._select_profile(invoice.client_code)
         response = requests.get(
             f"https://fastweb.it/myfastweb/abbonamento/le-mie-fatture/conto-fastweb/Conto-FASTWEB-{invoice.id}-{invoice.doc_date.strftime('%Y%m%d')}.pdf",
-            cookies=self.get_cookies(),
+            cookies=await self.get_cookies(),
         )
 
         if response.status_code != 200:
