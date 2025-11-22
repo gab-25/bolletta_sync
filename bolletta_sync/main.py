@@ -1,4 +1,6 @@
 import argparse
+import asyncio
+import logging
 import os
 from datetime import date, timedelta
 from enum import Enum
@@ -7,12 +9,15 @@ from dotenv import load_dotenv
 from google.auth.transport.requests import Request as AuthRequest
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
-from playwright.sync_api import Playwright, sync_playwright
+from playwright.async_api import async_playwright, Browser
 from pydantic import BaseModel, model_validator
 
 DEV_MODE = os.getenv("DEV_MODE") == "true"
 dotenv_path = os.path.expanduser("~/.bolletta_sync") if not DEV_MODE else ".env"
 load_dotenv(dotenv_path=dotenv_path)
+
+logger = logging.getLogger()
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] - %(message)s")
 
 from bolletta_sync.providers.eni import Eni
 from bolletta_sync.providers.fastweb import Fastweb
@@ -32,9 +37,9 @@ class Provider(Enum):
 
 
 class SyncParams(BaseModel):
-    providers: list[Provider] = list(Provider)
-    start_date: date = date.today() - timedelta(days=10)
-    end_date: date = date.today()
+    provider: Provider
+    start_date: date
+    end_date: date
 
     @model_validator(mode="after")
     def validate_year(self):
@@ -43,65 +48,57 @@ class SyncParams(BaseModel):
         return self
 
 
-def sync(sync_params: SyncParams, google_credentials: Credentials, playwright: Playwright):
-    if sync_params.providers is None:
-        sync_params.providers = list(Provider)
-    if sync_params.start_date is None:
-        sync_params.start_date = date.today().replace(day=1)
-    if sync_params.end_date is None:
-        sync_params.end_date = (sync_params.start_date + timedelta(days=31)).replace(day=1)
+async def sync(params: SyncParams, google_credentials: Credentials, brower: Browser):
+    logger.info(f"{params.provider.value} - Syncing invoices from {params.start_date} to {params.end_date}")
 
-    print(f"Syncing invoices from {sync_params.start_date} to {sync_params.end_date}, "
-          f"providers: {list(map(lambda p: p.value, sync_params.providers))}")
+    page = await brower.new_page()
+    instance = None
 
-    for provider in sync_params.providers:
-        instance = None
+    if params.provider == Provider.FASTWEB:
+        instance = Fastweb(google_credentials, page)
+    elif params.provider == Provider.FASTEWEB_ENERGIA:
+        instance = FastwebEnergia(google_credentials, page)
+    elif params.provider == Provider.ENI:
+        instance = Eni(google_credentials, page)
+    elif params.provider == Provider.UMBRA_ACQUE:
+        instance = UmbraAcque(google_credentials, page)
 
-        if provider == Provider.FASTWEB:
-            instance = Fastweb(google_credentials, playwright)
-        elif provider == Provider.FASTEWEB_ENERGIA:
-            instance = FastwebEnergia(google_credentials, playwright)
-        elif provider == Provider.ENI:
-            instance = Eni(google_credentials, playwright)
-        elif provider == Provider.UMBRA_ACQUE:
-            instance = UmbraAcque(google_credentials, playwright)
+    if instance is None:
+        raise Exception("Unknown provider")
 
-        if instance is None:
-            raise Exception("Unknown provider")
+    try:
+        logger.info(f"{params.provider.value} - Syncing invoices")
+        invoces = await instance.get_invoices(params.start_date, params.end_date)
+        logger.info(f"{params.provider.value} - Synced {len(invoces)} invoices")
+        await instance.check_namespace()
+        for invoce in invoces:
+            doc = await instance.download_invoice(invoce)
+            await instance.save_invoice(invoce, doc)
+            await instance.set_expire_invoice(invoce)
+    except Exception as e:
+        logger.error(f"{params.provider.value} - Error while syncing with {params.provider.value}", e)
+        raise e
 
-        try:
-            print(f"Syncing invoices from {provider.value}")
-            invoces = instance.get_invoices(sync_params.start_date, sync_params.end_date)
-            print(f"Synced {len(invoces)} invoices from {provider.value}")
-            instance.check_namespace()
-            for invoce in invoces:
-                doc = instance.download_invoice(invoce)
-                instance.save_invoice(invoce, doc)
-                instance.set_expire_invoice(invoce)
-        except Exception as e:
-            print(f"Error while syncing with {provider.value}", e)
-            raise e
-
-    return {"message": "invoices synced successfully"}
+    logger.info(f"{params.provider.value} - Invoices synced successfully")
 
 
-def get_google_credentials() -> Credentials:
+async def get_google_credentials() -> Credentials:
     google_credentials = None
 
     if os.path.exists(google_token_file):
         google_credentials = Credentials.from_authorized_user_file(google_token_file, google_auth_scopes)
     else:
-        print("Google credentials not found, starting Google OAuth flow")
-        google_auth()
+        logger.info("Google credentials not found, starting Google OAuth flow")
+        await google_auth()
 
     if google_credentials and google_credentials.expired:
-        print("Google credentials expired, refreshing")
+        logger.info("Google credentials expired, refreshing")
         google_credentials.refresh(AuthRequest())
 
     return google_credentials
 
 
-def google_auth():
+async def google_auth():
     flow = InstalledAppFlow.from_client_secrets_file(google_credentials_file, google_auth_scopes)
     credentials = flow.run_local_server(port=0)
 
@@ -109,9 +106,8 @@ def google_auth():
         token.write(credentials.to_json())
 
 
-def main():
-    google_credentials = get_google_credentials()
-    params = SyncParams()
+async def main():
+    google_credentials = await get_google_credentials()
 
     parser = argparse.ArgumentParser(description='Sync invoices from providers')
     parser.add_argument('--start_date', type=str, help='Start date in format YYYY-MM-DD')
@@ -119,12 +115,14 @@ def main():
     parser.add_argument('--providers', nargs='+', type=Provider, help='List of providers to sync')
     args = parser.parse_args()
 
-    if args.start_date:
-        params.start_date = date.fromisoformat(args.start_date)
-    if args.end_date:
-        params.end_date = date.fromisoformat(args.end_date)
-    if args.providers:
-        params.providers = args.providers
+    start_date = date.fromisoformat(args.start_date) if args.start_date else date.today() - timedelta(days=10)
+    end_date = date.fromisoformat(args.end_date) if args.end_date else date.today()
+    providers = args.providers if args.providers else list(Provider)
 
-    with sync_playwright() as playwright:
-        sync(params, google_credentials, playwright)
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=DEV_MODE == False)
+        tasks = []
+        for provider in providers:
+            params = SyncParams(provider=provider, start_date=start_date, end_date=end_date)
+            tasks.append(sync(params, google_credentials, browser))
+        await asyncio.gather(*tasks)
