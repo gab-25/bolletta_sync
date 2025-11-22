@@ -16,8 +16,8 @@ class QTextEditHandler(StreamHandler):
         self.text_widget = text_widget
 
     def emit(self, record):
-        msg = self.format(record)
-        self.text_widget.append(msg)
+        self.text_widget.append(record.msg)
+        self.text_widget.repaint()
 
 
 class MainWindow(QWidget):
