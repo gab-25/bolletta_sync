@@ -13,7 +13,7 @@ class Eni(BaseProvider):
         super().__init__(google_credentials, playwright, "eni")
         self.account_code = None
 
-    def _login_eni(self):
+    async def _login_eni(self):
         self.page.goto("https://eniplenitude.com/my-eni/")
 
         with recaptchav2.SyncSolver(self.page) as solver:
@@ -30,10 +30,10 @@ class Eni(BaseProvider):
         with self.page.expect_navigation():
             self.page.get_by_role("button", name="Accedi").click()
 
-    def get_invoices(self, start_date: date, end_date: date) -> list[Invoice]:
+    async def get_invoices(self, start_date: date, end_date: date) -> list[Invoice]:
         invoices: list[Invoice] = []
 
-        self._login_eni()
+        await self._login_eni()
 
         response = requests.get(
             "https://eniplenitude.com/serviceDAp/api/c360/init?logHash=wv5y2LVrjgcVRvW82WLEw3&channel=PORTAL",
@@ -61,7 +61,7 @@ class Eni(BaseProvider):
 
         return invoices
 
-    def download_invoice(self, invoice: Invoice) -> bytes:
+    async def download_invoice(self, invoice: Invoice) -> bytes:
         response = requests.get(
             f"https://eniplenitude.com/serviceDAp/c360/api/conti/{self.account_code}/download-doc-pdf?numeroFattura={invoice.id}&logHash=0golQ74cfqlmjhg1O5pHyn&channel=PORTAL",
             cookies=self.get_cookies()
@@ -72,10 +72,10 @@ class Eni(BaseProvider):
 
         return response.content
 
-    def save_invoice(self, invoice: Invoice, invoice_pdf: bytes) -> bool:
-        result = super().save_invoice(invoice, invoice_pdf)
+    async def save_invoice(self, invoice: Invoice, invoice_pdf: bytes) -> bool:
+        result = await super().save_invoice(invoice, invoice_pdf)
         return result
 
-    def set_expire_invoice(self, invoice: Invoice) -> bool:
-        result = super().set_expire_invoice(invoice)
+    async def set_expire_invoice(self, invoice: Invoice) -> bool:
+        result = await super().set_expire_invoice(invoice)
         return result

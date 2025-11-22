@@ -43,7 +43,7 @@ class SyncParams(BaseModel):
         return self
 
 
-def sync(sync_params: SyncParams, google_credentials: Credentials, playwright: Playwright):
+async def sync(sync_params: SyncParams, google_credentials: Credentials, playwright: Playwright):
     if sync_params.providers is None:
         sync_params.providers = list(Provider)
     if sync_params.start_date is None:
@@ -85,14 +85,14 @@ def sync(sync_params: SyncParams, google_credentials: Credentials, playwright: P
     return {"message": "invoices synced successfully"}
 
 
-def get_google_credentials() -> Credentials:
+async def get_google_credentials() -> Credentials:
     google_credentials = None
 
     if os.path.exists(google_token_file):
         google_credentials = Credentials.from_authorized_user_file(google_token_file, google_auth_scopes)
     else:
         print("Google credentials not found, starting Google OAuth flow")
-        google_auth()
+        await google_auth()
 
     if google_credentials and google_credentials.expired:
         print("Google credentials expired, refreshing")
@@ -101,7 +101,7 @@ def get_google_credentials() -> Credentials:
     return google_credentials
 
 
-def google_auth():
+async def google_auth():
     flow = InstalledAppFlow.from_client_secrets_file(google_credentials_file, google_auth_scopes)
     credentials = flow.run_local_server(port=0)
 
@@ -109,8 +109,8 @@ def google_auth():
         token.write(credentials.to_json())
 
 
-def main():
-    google_credentials = get_google_credentials()
+async def main():
+    google_credentials = await get_google_credentials()
     params = SyncParams()
 
     parser = argparse.ArgumentParser(description='Sync invoices from providers')
@@ -127,4 +127,4 @@ def main():
         params.providers = args.providers
 
     with sync_playwright() as playwright:
-        sync(params, google_credentials, playwright)
+        await sync(params, google_credentials, playwright)

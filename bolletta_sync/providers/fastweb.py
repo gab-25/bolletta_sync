@@ -15,7 +15,7 @@ class Fastweb(BaseProvider):
             raise Exception("FASTWEB_CLIENT_CODE not set")
         self.client_codes = os.getenv("FASTWEB_CLIENT_CODE").split(",")
 
-    def _login_fastweb(self):
+    async def _login_fastweb(self):
         self.page.goto("https://fastweb.it/myfastweb/accesso/login/")
 
         self.page.locator("iframe[title=\"Cookie center\"]").content_frame.get_by_role("button",
@@ -28,7 +28,7 @@ class Fastweb(BaseProvider):
         with self.page.expect_navigation():
             self.page.get_by_role("link", name="Accedi").click()
 
-    def _select_profile(self, client_code: str):
+    async def _select_profile(self, client_code: str):
         self.page.goto("https://fastweb.it/myfastweb/accesso/seleziona-codice-cliente/")
 
         try:
@@ -38,14 +38,14 @@ class Fastweb(BaseProvider):
         except:
             raise Exception("invalid client code")
 
-    def get_invoices(self, start_date: date, end_date: date) -> list[Invoice]:
+    async def get_invoices(self, start_date: date, end_date: date) -> list[Invoice]:
         invoices: list[Invoice] = []
 
-        self._login_fastweb()
+        await self._login_fastweb()
 
         for client_code in self.client_codes:
             print(f"getting invoices for client {client_code}")
-            self._select_profile(client_code)
+            await self._select_profile(client_code)
 
             response = requests.get("https://fastweb.it/myfastweb/abbonamento/le-mie-fatture/",
                                     cookies=self.get_cookies())
@@ -71,8 +71,8 @@ class Fastweb(BaseProvider):
 
         return invoices
 
-    def download_invoice(self, invoice: Invoice) -> bytes:
-        self._select_profile(invoice.client_code)
+    async def download_invoice(self, invoice: Invoice) -> bytes:
+        await self._select_profile(invoice.client_code)
         response = requests.get(
             f"https://fastweb.it/myfastweb/abbonamento/le-mie-fatture/conto-fastweb/Conto-FASTWEB-{invoice.id}-{invoice.doc_date.strftime('%Y%m%d')}.pdf",
             cookies=self.get_cookies(),
@@ -85,10 +85,10 @@ class Fastweb(BaseProvider):
 
         return invoice_pdf
 
-    def save_invoice(self, invoice: Invoice, invoice_pdf: bytes) -> bool:
-        result = super().save_invoice(invoice, invoice_pdf)
+    async def save_invoice(self, invoice: Invoice, invoice_pdf: bytes) -> bool:
+        result = await super().save_invoice(invoice, invoice_pdf)
         return result
 
-    def set_expire_invoice(self, invoice: Invoice) -> bool:
-        result = super().set_expire_invoice(invoice)
+    async def set_expire_invoice(self, invoice: Invoice) -> bool:
+        result = await super().set_expire_invoice(invoice)
         return result

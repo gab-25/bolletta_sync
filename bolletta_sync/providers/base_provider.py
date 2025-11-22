@@ -59,7 +59,7 @@ class BaseProvider(ABC):
 
         return folder.get('id')
 
-    def check_namespace(self) -> bool:
+    async def check_namespace(self) -> bool:
         # google drive
         bollette_folder_id = self._create_folder("bollette")
         year_folder_id = self._create_folder(str(date.today().year), bollette_folder_id)
@@ -79,19 +79,19 @@ class BaseProvider(ABC):
 
         return True
 
-    def get_invoices(self, start_date: date, end_date: date) -> list[Invoice]:
+    async def get_invoices(self, start_date: date, end_date: date) -> list[Invoice]:
         """
         return the invoices from the provider
         """
         raise Exception("get invoices not implemented")
 
-    def download_invoice(self, invoice: Invoice) -> bytes:
+    async def download_invoice(self, invoice: Invoice) -> bytes:
         """
         download the invoice from the provider
         """
         raise Exception("download invoice not implemented")
 
-    def save_invoice(self, invoice: Invoice, invoice_pdf: bytes) -> bool:
+    async def save_invoice(self, invoice: Invoice, invoice_pdf: bytes) -> bool:
         """
         save the invoice to google drive
         """
@@ -119,7 +119,7 @@ class BaseProvider(ABC):
 
         return True
 
-    def set_expire_invoice(self, invoice: Invoice) -> bool:
+    async def set_expire_invoice(self, invoice: Invoice) -> bool:
         """
         set expire invoice to google tasks
         """

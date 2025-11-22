@@ -14,7 +14,7 @@ class UmbraAcque(BaseProvider):
     def __init__(self, google_credentials, playwright: Playwright):
         super().__init__(google_credentials, playwright, "umbra_acque")
 
-    def _login_umbra_acque(self):
+    async def _login_umbra_acque(self):
         self.page.goto("https://self-service.umbraacque.com/umbraacque/login/")
 
         self.page.get_by_role("button", name="Accetta tutti i cookie").click()
@@ -27,10 +27,10 @@ class UmbraAcque(BaseProvider):
         with self.page.expect_navigation():
             self.page.get_by_role("button", name="ACCEDI").click()
 
-    def get_invoices(self, start_date: date, end_date: date) -> list[Invoice]:
+    async def get_invoices(self, start_date: date, end_date: date) -> list[Invoice]:
         invoices: list[Invoice] = []
 
-        self._login_umbra_acque()
+        await self._login_umbra_acque()
 
         response = requests.get("https://self-service.umbraacque.com/bin/acea-myacea/utenze/", params={
             "path": "/content/acea-myacea/umbraacque/selfcare/privato"}, cookies=self.get_cookies())
@@ -60,7 +60,7 @@ class UmbraAcque(BaseProvider):
 
         return invoices
 
-    def download_invoice(self, invoice: Invoice) -> bytes:
+    async def download_invoice(self, invoice: Invoice) -> bytes:
         response = requests.get(
             "https://self-service.umbraacque.com/bin/acea-myacea/download/",
             params={
@@ -75,10 +75,10 @@ class UmbraAcque(BaseProvider):
 
         return invoice_pdf
 
-    def save_invoice(self, invoice: Invoice, invoice_pdf: bytes) -> bool:
-        result = super().save_invoice(invoice, invoice_pdf)
+    async def save_invoice(self, invoice: Invoice, invoice_pdf: bytes) -> bool:
+        result = await super().save_invoice(invoice, invoice_pdf)
         return result
 
-    def set_expire_invoice(self, invoice: Invoice) -> bool:
-        result = super().set_expire_invoice(invoice)
+    async def set_expire_invoice(self, invoice: Invoice) -> bool:
+        result = await super().set_expire_invoice(invoice)
         return result
