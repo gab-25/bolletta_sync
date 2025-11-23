@@ -1,10 +1,12 @@
 import asyncio
+import logging
 import sys
+import tomllib
 from datetime import date
 from logging import StreamHandler
 from threading import Thread
 
-from PySide6.QtCore import QDate, QObject, Signal
+from PySide6.QtCore import QDate, QObject, Signal, Qt
 from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QDateEdit, QCheckBox, QPushButton, QTextEdit,
                                QLabel, QGroupBox, QFormLayout)
 
@@ -23,6 +25,11 @@ class QTextEditHandler(StreamHandler):
         self.signaler.new_msg.connect(text_widget.append)
 
     def emit(self, record):
+        if record.exc_info is None and record.levelno >= logging.ERROR and record.args:
+            for arg in record.args:
+                if isinstance(arg, Exception):
+                    record.exc_info = (type(arg), arg, arg.__traceback__)
+                    break
         msg = self.format(record)
         self.signaler.new_msg.emit(msg)
 
@@ -90,6 +97,14 @@ class MainWindow(QWidget):
         main_layout.addWidget(QLabel("Output:"))
         main_layout.addWidget(self.log_area)
 
+        with open("pyproject.toml", "rb") as f:
+            version = tomllib.load(f)["project"]["version"]
+        version_label = QLabel(f"Version: {version}")
+        version_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        version_label.setStyleSheet("color: gray;")
+
+        main_layout.addWidget(version_label)
+
         self.validate_form()
 
     def on_sync_finished(self):
@@ -121,7 +136,7 @@ class MainWindow(QWidget):
             try:
                 asyncio.run(main(selected_providers, selected_start_date, selected_end_date))
             except Exception as e:
-                logger.error(f"Error during sync: {e}")
+                logger.exception("Error during sync")
             finally:
                 self.sync_finished.emit()
 
