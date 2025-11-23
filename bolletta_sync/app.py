@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os.path
 import sys
 import tomllib
 from datetime import date
@@ -11,7 +12,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QDateEdit, QCheckBox, QPushButton, QTextEdit,
                                QLabel, QGroupBox, QFormLayout)
 
-from bolletta_sync.main import Provider, main, logger, pyproject
+from bolletta_sync.main import Provider, main, logger, pyproject, base_path
 
 
 class LogSignaler(QObject):
@@ -45,7 +46,7 @@ class MainWindow(QWidget):
         self.sync_finished.connect(self.on_sync_finished)
 
         self.setWindowTitle("Bolletta Sync")
-        self.setWindowIcon(QIcon("icon.ico"))
+        self.setWindowIcon(QIcon(os.path.join(base_path, "icon.ico")))
         self.resize(800, 700)
 
         main_layout = QVBoxLayout()
