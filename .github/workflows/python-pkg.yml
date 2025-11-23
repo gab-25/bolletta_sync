@@ -35,7 +35,7 @@ jobs:
           pip install .[dev]
       - name: Build package
         run: |
-          pyinstaller bolletta_sync/app.py --onefile --windowed --name bolletta-sync --icon icon.png
+          pyinstaller bolletta_sync/app.py --onefile --windowed --name bolletta-sync --icon icon.ico
       - name: Upload package to latest release
         env:
           GITHUB_TOKEN: ${{ github.token }}
