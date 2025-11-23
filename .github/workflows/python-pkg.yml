@@ -37,7 +37,7 @@ jobs:
           PLAYWRIGHT_BROWSERS_PATH: ./pw-browsers
       - name: Build package
         run: |
-          pyinstaller bolletta_sync/app.py --onefile --add-data "pyproject.toml:." --add-data "pw-browsers:pw-browsers" --windowed --name bolletta-sync --icon icon.ico
+          pyinstaller bolletta_sync/app.py --onefile --add-data "pyproject.toml:." --add-data "pw-browsers:pw-browsers" --add-data "icon.ico:." --windowed --name bolletta-sync --icon icon.ico
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
