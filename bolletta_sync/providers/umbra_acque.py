@@ -1,6 +1,7 @@
 import logging
 import os
 from datetime import date, datetime
+from urllib.parse import unquote
 
 import requests
 from playwright.async_api import Page
@@ -51,6 +52,7 @@ class UmbraAcque(BaseProvider):
                                   doc_date=datetime.strptime(i["issueDate"], "%d/%m/%Y"),
                                   due_date=datetime.strptime(i["expiryDate"], "%d/%m/%Y"),
                                   amount=i["total"],
+                                  metadata={"code": unquote(i["documentLink"]).split("&path=")[0]},
                                   client_code=i["contractId"]),
                 response.json().get("body")["invoices"]))
         invoice_list_filtered = list(
@@ -64,7 +66,7 @@ class UmbraAcque(BaseProvider):
         response = requests.get(
             "https://self-service.umbraacque.com/bin/acea-myacea/download/",
             params={
-                "code": f"/download/invoice?contr={invoice.client_code}&code=42010AF32D161FE0A5B135871D859FC0&nbr={invoice.id}",
+                "code": invoice.metadata["code"],
                 "path": "/content/acea-myacea/umbraacque/selfcare/fatture/jcr:content/content-private-par/invoices_table"
             }, cookies=await self.get_cookies())
 

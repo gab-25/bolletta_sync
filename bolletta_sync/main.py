@@ -88,7 +88,7 @@ async def sync(params: SyncParams, google_credentials: Credentials, brower: Brow
             await instance.save_invoice(invoce, doc)
             await instance.set_expire_invoice(invoce)
     except Exception as e:
-        logger.error(f"{params.provider.value} - Error while syncing with {params.provider.value}", e)
+        logger.error(f"{params.provider.value} - Error while syncing cause: {e}")
         raise e
 
     logger.info(f"{params.provider.value} - Invoices synced successfully")
