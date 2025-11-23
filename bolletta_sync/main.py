@@ -37,7 +37,7 @@ from bolletta_sync.providers.fastweb_energia import FastwebEnergia
 from bolletta_sync.providers.umbra_acque import UmbraAcque
 
 google_auth_scopes = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/tasks"]
-google_credentials_file = os.path.join(base_folder, "google_credentials.json")
+google_credentials_file = os.path.join(base_path, "google_credentials.json")
 google_token_file = os.path.join(base_folder, "google_token.json")
 
 

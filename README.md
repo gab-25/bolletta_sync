@@ -31,8 +31,7 @@ The application is distributed as a single executable file, no additional instal
 Create a folder named `.bolletta-sync` in your home directory (e.g., `C:\Users\YourName\.bolletta-sync` or `/home/YourName/.bolletta-sync`).
 Inside this folder, place the following files:
 
-1. `google_credentials.json`: The credentials file for the Google Auth Platform.
-2. `settings`: The configuration file for the application.
+1. `settings`: The configuration file for the application.
 
 The `settings` file must contain the following key-value pairs (adjust values as needed):
 
