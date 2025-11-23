@@ -9,10 +9,8 @@
 name: Python Package
 
 on:
-  push:
-    branches: [ main ]
-#  release:
-#    types: [ published ]
+  release:
+    types: [ published ]
 
 permissions:
   contents: write
