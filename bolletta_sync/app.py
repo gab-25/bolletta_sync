@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import os.path
 import sys
 import tomllib
 from datetime import date
@@ -8,10 +7,11 @@ from logging import StreamHandler
 from threading import Thread
 
 from PySide6.QtCore import QDate, QObject, Signal, Qt
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QDateEdit, QCheckBox, QPushButton, QTextEdit,
                                QLabel, QGroupBox, QFormLayout)
 
-from bolletta_sync.main import Provider, main, logger
+from bolletta_sync.main import Provider, main, logger, pyproject
 
 
 class LogSignaler(QObject):
@@ -45,6 +45,7 @@ class MainWindow(QWidget):
         self.sync_finished.connect(self.on_sync_finished)
 
         self.setWindowTitle("Bolletta Sync")
+        self.setWindowIcon(QIcon("icon.ico"))
         self.resize(800, 700)
 
         main_layout = QVBoxLayout()
@@ -98,11 +99,6 @@ class MainWindow(QWidget):
         main_layout.addWidget(QLabel("Output:"))
         main_layout.addWidget(self.log_area)
 
-        try:
-            base_path = sys._MEIPASS
-        except Exception:
-            base_path = os.path.abspath(".")
-        pyproject = os.path.join(base_path, "pyproject.toml")
         with open(pyproject, "rb") as f:
             version = tomllib.load(f)["project"]["version"]
         version_label = QLabel(f"Version: {version}")

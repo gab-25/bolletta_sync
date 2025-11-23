@@ -176,3 +176,4 @@ cython_debug/
 google_credentials.json
 google_token.json
 settings
+pw-browsers

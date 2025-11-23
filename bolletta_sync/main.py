@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import sys
 from datetime import date, timedelta
 from enum import Enum
 
@@ -18,6 +19,15 @@ base_folder = os.path.expanduser("~/.bolletta_sync") if not DEV_MODE else "."
 dotenv_path = os.path.join(base_folder, "settings")
 load_dotenv(dotenv_path=dotenv_path)
 
+try:
+    base_path = sys._MEIPASS
+except Exception:
+    base_path = os.path.abspath(".")
+pyproject = os.path.join(base_path, "pyproject.toml")
+pw_browsers = os.path.join(base_path, "pw-browsers")
+
+os.environ['PLAYWRIGHT_BROWSERS_PATH'] = pw_browsers
+
 logger = logging.getLogger()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] - %(message)s")
 
@@ -27,8 +37,8 @@ from bolletta_sync.providers.fastweb_energia import FastwebEnergia
 from bolletta_sync.providers.umbra_acque import UmbraAcque
 
 google_auth_scopes = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/tasks"]
-google_credentials_file = os.path.join(base_folder, "./google_credentials.json")
-google_token_file = os.path.join(base_folder, "./google_token.json")
+google_credentials_file = os.path.join(base_folder, "google_credentials.json")
+google_token_file = os.path.join(base_folder, "google_token.json")
 
 
 class Provider(Enum):
