@@ -16,6 +16,7 @@ class Invoice(BaseModel):
     due_date: date
     amount: float
     client_code: str
+    metadata: dict = None
 
 
 class BaseProvider(ABC):
