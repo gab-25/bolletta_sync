@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os.path
 import sys
 import tomllib
 from datetime import date
@@ -97,7 +98,12 @@ class MainWindow(QWidget):
         main_layout.addWidget(QLabel("Output:"))
         main_layout.addWidget(self.log_area)
 
-        with open("pyproject.toml", "rb") as f:
+        try:
+            base_path = sys._MEIPASS
+        except Exception:
+            base_path = os.path.abspath(".")
+        pyproject = os.path.join(base_path, "pyproject.toml")
+        with open(pyproject, "rb") as f:
             version = tomllib.load(f)["project"]["version"]
         version_label = QLabel(f"Version: {version}")
         version_label.setAlignment(Qt.AlignmentFlag.AlignRight)

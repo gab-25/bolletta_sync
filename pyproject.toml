@@ -1,6 +1,6 @@
 [project]
 name = "bolletta-sync"
-version = "0.1.0"
+version = "0.1.1"
 description = ""
 authors = [
     {name = "Gabriele Sorci", email = "gabrielesorci.25@gmail.com"}

@@ -34,7 +34,7 @@ jobs:
           pip install .[dev]
       - name: Build package
         run: |
-          pyinstaller bolletta_sync/app.py --onefile --windowed --name bolletta-sync --icon icon.ico
+          pyinstaller bolletta_sync/app.py --onefile --add-data "pyproject.toml:." --windowed --name bolletta-sync --icon icon.ico
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
