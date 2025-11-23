@@ -35,6 +35,10 @@ jobs:
           playwright install chromium
         env:
           PLAYWRIGHT_BROWSERS_PATH: ./pw-browsers
+      - name: Create file for google credentials
+        run: |
+          echo "${{ secrets.GOOGLE_CREDENTIALS }}" | base64 --decode > google_credentials.json
+        shell: bash
       - name: Build package
         run: |
           pyinstaller bolletta_sync/app.py --onefile --add-data "pyproject.toml:." --add-data "pw-browsers:pw-browsers" --add-data "icon.ico:." --add-data "google_credentials.json:." --windowed --name bolletta-sync --icon icon.ico
