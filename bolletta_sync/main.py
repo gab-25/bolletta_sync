@@ -14,9 +14,7 @@ from pydantic import BaseModel, model_validator
 
 DEV_MODE = os.getenv("DEV_MODE") == "true"
 
-base_folder = os.path.expanduser("~/.bolletta_sync") if not DEV_MODE else "."
-
-dotenv_path = os.path.join(base_folder, "settings")
+dotenv_path = os.path.expanduser("~/.bolletta_sync") if not DEV_MODE else ".env"
 load_dotenv(dotenv_path=dotenv_path)
 
 try:
@@ -38,7 +36,7 @@ from bolletta_sync.providers.umbra_acque import UmbraAcque
 
 google_auth_scopes = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/tasks"]
 google_credentials_file = os.path.join(base_path, "google_credentials.json")
-google_token_file = os.path.join(base_folder, "google_token.json")
+google_token_file = os.path.join(base_path, "google_token.json")
 
 
 class Provider(Enum):

@@ -41,7 +41,7 @@ jobs:
         shell: bash
       - name: Build package
         run: |
-          pyinstaller bolletta_sync/app.py --onefile --add-data "pyproject.toml:." --add-data "pw-browsers:pw-browsers" --add-data "icon.ico:." --add-data "google_credentials.json:." --windowed --name bolletta-sync --icon icon.ico
+          pyinstaller bolletta_sync/app.py --add-data "pyproject.toml:." --add-data "pw-browsers:pw-browsers" --add-data "icon.ico:." --add-data "google_credentials.json:." --windowed --name bolletta-sync --icon icon.ico
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -59,11 +59,11 @@ jobs:
           path: artifacts
       - name: Rename files for release
         run: |
-          mv artifacts/build-ubuntu-latest/bolletta-sync bolletta-sync_linux
-          mv artifacts/build-windows-latest/bolletta-sync.exe bolletta-sync_windows.exe
+          tar -czvf bolletta-sync_linux.tar.gz artifacts/build-ubuntu-latest/bolletta-sync
+          tar -czvf bolletta-sync_windows.tar.gz artifacts/build-windows-latest/bolletta-sync.exe
       - name: Update release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            bolletta-sync_linux
-            bolletta-sync_windows.exe
+            bolletta-sync_linux.tar.gz
+            bolletta-sync_windows.tar.gz
