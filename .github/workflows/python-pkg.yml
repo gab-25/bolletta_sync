@@ -60,7 +60,7 @@ jobs:
       - name: Rename files for release
         run: |
           tar -czvf bolletta-sync_linux.tar.gz artifacts/build-ubuntu-latest/bolletta-sync
-          tar -czvf bolletta-sync_windows.tar.gz artifacts/build-windows-latest/bolletta-sync.exe
+          tar -czvf bolletta-sync_windows.tar.gz artifacts/build-windows-latest/bolletta-sync
       - name: Update release
         uses: softprops/action-gh-release@v2
         with:
