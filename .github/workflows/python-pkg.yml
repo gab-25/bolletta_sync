@@ -57,7 +57,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-      - name: Rename files for release
+      - name: Create archive for release
         run: |
           tar -czvf bolletta-sync_linux.tar.gz artifacts/build-ubuntu-latest/bolletta-sync
           tar -czvf bolletta-sync_windows.tar.gz artifacts/build-windows-latest/bolletta-sync
