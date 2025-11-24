@@ -61,7 +61,7 @@ class SyncParams(BaseModel):
 async def sync(params: SyncParams, google_credentials: Credentials, brower: Browser):
     logger.info(f"{params.provider.value} - Syncing invoices from {params.start_date} to {params.end_date}")
 
-    page = await brower.new_page()
+    page = await brower.new_page(locale="en-EN")
     instance = None
 
     if params.provider == Provider.FASTWEB:
