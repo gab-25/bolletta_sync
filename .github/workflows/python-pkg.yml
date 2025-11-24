@@ -59,11 +59,11 @@ jobs:
           path: artifacts
       - name: Create archive for release
         run: |
-          cd /home/runner/work/bolletta_sync/bolletta_sync/artifacts/build-windows-latest && tar -czvf bolletta-sync_linux.tar.gz bolletta-sync
-          cd /home/runner/work/bolletta_sync/bolletta_sync/artifacts/build-ubuntu-latest && tar -czvf bolletta-sync_windows.tar.gz bolletta-sync
+          cd /home/runner/work/bolletta_sync/bolletta_sync/artifacts//build-ubuntu-latest && tar -czvf bolletta-sync_linux.tar.gz bolletta-sync
+          cd /home/runner/work/bolletta_sync/bolletta_sync/artifacts/build-windows-latest && tar -czvf bolletta-sync_windows.tar.gz bolletta-sync
       - name: Update release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            /home/runner/work/bolletta_sync/bolletta_sync/artifacts/build-windows-latest/bolletta-sync_linux.tar.gz
-            /home/runner/work/bolletta_sync/bolletta_sync/artifacts/build-ubuntu-latest/bolletta-sync_windows.tar.gz
+            /home/runner/work/bolletta_sync/bolletta_sync/artifacts/build-ubuntu-latest/bolletta-sync_linux.tar.gz
+            /home/runner/work/bolletta_sync/bolletta_sync/artifacts/build-windows-latest/bolletta-sync_windows.tar.gz
