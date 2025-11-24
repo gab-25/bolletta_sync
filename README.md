@@ -21,19 +21,15 @@ A desktop application for synchronizing and managing utility invoices across dif
 
 Download the latest release for your platform:
 
-- Windows: `bolletta-sync_windows.exe`
-- Linux: `bolletta-sync_linux`
+- Windows: `bolletta-sync_windows.tar.gz`
+- Linux: `bolletta-sync_linux.tar.gz`
 
 The application is distributed as a single executable file, no additional installation steps required.
 
 ## Configuration
 
-Create a folder named `.bolletta-sync` in your home directory (e.g., `C:\Users\YourName\.bolletta-sync` or `/home/YourName/.bolletta-sync`).
-Inside this folder, place the following files:
-
-1. `settings`: The configuration file for the application.
-
-The `settings` file must contain the following key-value pairs (adjust values as needed):
+Create a file named `.bolletta-sync` in your home directory (e.g., `C:\Users\YourName\.bolletta-sync` or `/home/YourName/.bolletta-sync`).
+The file must contain the following key-value pairs (adjust values as needed):
 
 ```plain text
 FASTWEB_USERNAME=
