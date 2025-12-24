@@ -32,6 +32,7 @@ Create a file named `.bolletta-sync` in your home directory (e.g., `C:\Users\You
 The file must contain the following key-value pairs (adjust values as needed):
 
 ```plain text
+CAPSOLVER_API_KEY=
 FASTWEB_USERNAME=
 FASTWEB_PASSWORD=
 FASTWEB_CLIENT_CODE=
