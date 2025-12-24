@@ -16,16 +16,16 @@ class Eni(BaseProvider):
     async def _login_eni(self):
         await self.page.goto("https://eniplenitude.com/my-eni/")
 
-        async with recaptchav2.AsyncSolver(self.page) as solver:
+        async with recaptchav2.AsyncSolver(self.page, capsolver_api_key=os.getenv("CAPSOLVER_API_KEY")) as solver:
             await self.page.get_by_role("listitem", name="Accept proposed privacy").click()
             await self.page.get_by_role("textbox", name="email").fill(os.getenv("ENI_USERNAME"))
-            await solver.solve_recaptcha(wait=True)
+            await solver.solve_recaptcha(wait=True, image_challenge=True)
             await self.page.get_by_role("button", name="Prosegui", exact=True).click()
 
             await self.page.get_by_role("textbox", name="password").fill(os.getenv("ENI_PASSWORD"))
             await self.page.get_by_role("button", name="Accedi").click()
             await self.page.wait_for_timeout(1000)
-            await solver.solve_recaptcha(wait=True)
+            await solver.solve_recaptcha(wait=True, image_challenge=True)
 
         async with self.page.expect_navigation():
             await self.page.get_by_role("button", name="Accedi").click()
