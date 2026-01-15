@@ -1,6 +1,7 @@
 from abc import ABC
 from datetime import date
 from io import BytesIO
+from typing import Any
 
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
@@ -48,10 +49,12 @@ class BaseProvider(ABC):
         if results.get('files'):
             return results.get('files')[0].get('id')
 
-        folder_metadata = {
+        folder_metadata: dict[str, Any] = {
             'name': folder_name,
             'mimeType': 'application/vnd.google-apps.folder'
         }
+        if parent_folder_id:
+            folder_metadata['parents'] = [parent_folder_id]
         folder = self.drive_service.files().create(
             body=folder_metadata,
             fields='id'
