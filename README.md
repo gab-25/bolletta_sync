@@ -28,7 +28,7 @@ The application is distributed as a single executable file, no additional instal
 
 ## Configuration
 
-Create a file named `.bolletta-sync` in your home directory (e.g., `C:\Users\YourName\.bolletta-sync` or `/home/YourName/.bolletta-sync`).
+Create a file named `.bolletta_sync` in your home directory (e.g., `C:\Users\YourName\.bolletta_sync` or `/home/YourName/.bolletta_sync`).
 The file must contain the following key-value pairs (adjust values as needed):
 
 ```plain text
