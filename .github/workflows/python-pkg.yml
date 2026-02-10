@@ -57,7 +57,7 @@ jobs:
       - name: Create archive for release
         run: |
           cd /home/runner/work/bolletta_sync/bolletta_sync/artifacts/build-ubuntu-latest && tar -czvf bolletta-sync_linux.tar.gz bolletta-sync
-          cd /home/runner/work/bolletta_sync/bolletta_sync/artifacts/build-windows-latest && tar -czvf bolletta-sync_windows.tar.gz bolletta-sync
+          cd /home/runner/work/bolletta_sync/bolletta_sync/artifacts/build-windows-latest && tar -czvf bolletta-sync_windows.tar.gz bolletta-sync.exe
       - name: Update release
         uses: softprops/action-gh-release@v2
         with:
