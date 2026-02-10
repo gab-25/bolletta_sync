@@ -1,12 +1,12 @@
 [project]
 name = "bolletta-sync"
-version = "0.5.1"
+version = "0.6.0"
 description = ""
 authors = [
     {name = "Gabriele Sorci", email = "gabrielesorci.25@gmail.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.13,<3.15"
 dependencies = [
     "pydantic==2.12.4",
     "requests==2.32.5",

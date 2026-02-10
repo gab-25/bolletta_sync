@@ -10,7 +10,7 @@ name: Python Package
 
 on:
   release:
-    types: [ published ]
+    types: [published]
 
 permissions:
   contents: write
@@ -20,7 +20,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, windows-latest ]
+        os: [ubuntu-latest, windows-latest]
 
     steps:
       - uses: actions/checkout@v3
@@ -32,16 +32,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install .[dev]
-          playwright install chromium
-        env:
-          PLAYWRIGHT_BROWSERS_PATH: ./pw-browsers
       - name: Create file for google credentials
         run: |
           echo "${{ secrets.GOOGLE_CREDENTIALS }}" | base64 --decode > google_credentials.json
         shell: bash
       - name: Build package
         run: |
-          pyinstaller bolletta_sync/app.py --add-data "pyproject.toml:." --add-data "pw-browsers:pw-browsers" --add-data "icon.ico:." --add-data "google_credentials.json:." --windowed --name bolletta-sync --icon icon.ico
+          pyinstaller --onefile bolletta_sync/app.py --add-data "pyproject.toml:." --add-data "icon.ico:." --add-data "google_credentials.json:." --windowed --name bolletta-sync --icon icon.ico --hidden-import=tkinter
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -59,7 +56,7 @@ jobs:
           path: artifacts
       - name: Create archive for release
         run: |
-          cd /home/runner/work/bolletta_sync/bolletta_sync/artifacts//build-ubuntu-latest && tar -czvf bolletta-sync_linux.tar.gz bolletta-sync
+          cd /home/runner/work/bolletta_sync/bolletta_sync/artifacts/build-ubuntu-latest && tar -czvf bolletta-sync_linux.tar.gz bolletta-sync
           cd /home/runner/work/bolletta_sync/bolletta_sync/artifacts/build-windows-latest && tar -czvf bolletta-sync_windows.tar.gz bolletta-sync
       - name: Update release
         uses: softprops/action-gh-release@v2
