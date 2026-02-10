@@ -8,7 +8,7 @@ from threading import Thread
 
 import customtkinter as ctk
 
-from bolletta_sync.main import Provider, main, logger, pyproject, base_path
+from bolletta_sync.main import Provider, main, logger
 
 
 class TextBoxHandler(StreamHandler):
@@ -23,7 +23,7 @@ class TextBoxHandler(StreamHandler):
                 if isinstance(arg, Exception):
                     record.exc_info = (type(arg), arg, arg.__traceback__)
                     break
-        msg = self.format(record) + '\n'
+        msg = self.format(record) + "\n"
         self.text_widget.after(0, self.append_text, msg)
 
     def append_text(self, msg):
@@ -42,7 +42,7 @@ class App(ctk.CTk):
         self.title("Bolletta Sync")
         self.geometry("800x700")
 
-        icon_path = os.path.join(base_path, "icon.ico")
+        icon_path = os.path.join("icon.ico")
         if os.path.exists(icon_path):
             try:
                 self.iconbitmap(icon_path)
@@ -57,9 +57,9 @@ class App(ctk.CTk):
         self.date_frame.grid(row=0, column=0, padx=20, pady=(20, 10), sticky="ew")
         self.date_frame.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(self.date_frame, text="Select Date Range (YYYY-MM-DD)",
-                     font=ctk.CTkFont(size=14, weight="bold")).grid(row=0, column=0, columnspan=2, padx=10, pady=10,
-                                                                    sticky="w")
+        ctk.CTkLabel(
+            self.date_frame, text="Select Date Range (YYYY-MM-DD)", font=ctk.CTkFont(size=14, weight="bold")
+        ).grid(row=0, column=0, columnspan=2, padx=10, pady=10, sticky="w")
 
         ctk.CTkLabel(self.date_frame, text="Start Date:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
         self.start_date = ctk.CTkEntry(self.date_frame)
@@ -80,19 +80,22 @@ class App(ctk.CTk):
         self.providers_frame = ctk.CTkFrame(self)
         self.providers_frame.grid(row=1, column=0, padx=20, pady=10, sticky="ew")
 
-        ctk.CTkLabel(self.providers_frame, text="Providers",
-                     font=ctk.CTkFont(size=14, weight="bold")).pack(padx=10, pady=10, anchor="w")
+        ctk.CTkLabel(self.providers_frame, text="Providers", font=ctk.CTkFont(size=14, weight="bold")).pack(
+            padx=10, pady=10, anchor="w"
+        )
 
         self.cb_providers = {}
         for provider in list(Provider):
-            cb = ctk.CTkCheckBox(self.providers_frame, text=str(provider.value).replace("_", " ").title(),
-                                 command=self.validate_form)
+            cb = ctk.CTkCheckBox(
+                self.providers_frame, text=str(provider.value).replace("_", " ").title(), command=self.validate_form
+            )
             cb.pack(padx=10, pady=5, anchor="w")
             self.cb_providers[provider.name] = cb
 
         # Sync Button
-        self.btn_sync = ctk.CTkButton(self, text="SYNC", command=self.exec_sync, height=40,
-                                      font=ctk.CTkFont(size=14, weight="bold"))
+        self.btn_sync = ctk.CTkButton(
+            self, text="SYNC", command=self.exec_sync, height=40, font=ctk.CTkFont(size=14, weight="bold")
+        )
         self.btn_sync.grid(row=2, column=0, padx=20, pady=10, sticky="ew")
 
         # Log Area
@@ -106,7 +109,7 @@ class App(ctk.CTk):
 
         # Version
         try:
-            with open(pyproject, "rb") as f:
+            with open("pyproject.toml", "rb") as f:
                 version = tomllib.load(f)["project"]["version"]
         except Exception:
             version = "Unknown"

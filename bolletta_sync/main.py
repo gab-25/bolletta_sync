@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import subprocess
 import sys
 from datetime import date, timedelta
 from enum import Enum
@@ -17,15 +18,6 @@ DEV_MODE = os.getenv("DEV_MODE") == "true"
 dotenv_path = os.path.expanduser("~/.bolletta_sync") if not DEV_MODE else ".env"
 load_dotenv(dotenv_path=dotenv_path)
 
-try:
-    base_path = sys._MEIPASS
-except Exception:
-    base_path = os.path.abspath(".")
-pyproject = os.path.join(base_path, "pyproject.toml")
-pw_browsers = os.path.join(base_path, "pw-browsers")
-
-os.environ['PLAYWRIGHT_BROWSERS_PATH'] = pw_browsers
-
 logger = logging.getLogger()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] - %(message)s")
 
@@ -35,8 +27,8 @@ from bolletta_sync.providers.fastweb_energia import FastwebEnergia
 from bolletta_sync.providers.umbra_acque import UmbraAcque
 
 google_auth_scopes = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/tasks"]
-google_credentials_file = os.path.join(base_path, "google_credentials.json")
-google_token_file = os.path.join(base_path, "google_token.json")
+google_credentials_file = os.path.join("google_credentials.json")
+google_token_file = os.path.join("google_token.json")
 
 
 class Provider(Enum):
@@ -56,6 +48,16 @@ class SyncParams(BaseModel):
         if self.start_date.year != self.end_date.year:
             raise ValueError("start_date and end_date must be in the same year")
         return self
+
+
+def install_playwright():
+    pw_browsers = os.path.expanduser("~/.playwright")
+
+    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = pw_browsers
+
+    if not os.path.exists(pw_browsers):
+        logger.info("Playwright browsers not found, installing chromium browser...")
+        subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=True)
 
 
 async def sync(params: SyncParams, google_credentials: Credentials, brower: Browser):
@@ -117,6 +119,8 @@ async def google_auth():
 
 
 async def main(providers: list[Provider] = None, start_date: date = None, end_date: date = None):
+    install_playwright()
+
     google_credentials = await get_google_credentials()
 
     start_date = start_date if start_date else date.today() - timedelta(days=10)

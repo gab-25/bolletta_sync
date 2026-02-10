@@ -167,6 +167,9 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 
+# Zed
+.zed/
+
 # Ruff stuff:
 .ruff_cache/
 
@@ -176,4 +179,3 @@ cython_debug/
 google_credentials.json
 google_token.json
 settings
-pw-browsers
