@@ -8,7 +8,9 @@ from threading import Thread
 
 import customtkinter as ctk
 
-from bolletta_sync.main import Provider, main, logger
+from bolletta_sync.main import Provider, main, logger, base_path
+
+pyproject = os.path.join(base_path, "pyproject.toml")
 
 
 class TextBoxHandler(StreamHandler):
@@ -109,7 +111,7 @@ class App(ctk.CTk):
 
         # Version
         try:
-            with open("pyproject.toml", "rb") as f:
+            with open(pyproject, "rb") as f:
                 version = tomllib.load(f)["project"]["version"]
         except Exception:
             version = "Unknown"

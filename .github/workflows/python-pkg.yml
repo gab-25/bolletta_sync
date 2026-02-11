@@ -38,7 +38,7 @@ jobs:
         shell: bash
       - name: Build package
         run: |
-          pyinstaller --onefile bolletta_sync/app.py --add-data "pyproject.toml:." --add-data "icon.ico:." --add-data "google_credentials.json:." --windowed --name bolletta-sync --icon icon.ico --hidden-import=tkinter
+          pyinstaller --onefile bolletta_sync/app.py --add-data "pyproject.toml:." --add-data "google_credentials.json:." --windowed --name bolletta-sync --icon icon.ico --hidden-import=tkinter
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:

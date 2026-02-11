@@ -18,6 +18,11 @@ DEV_MODE = os.getenv("DEV_MODE") == "true"
 dotenv_path = os.path.expanduser("~/.bolletta_sync") if not DEV_MODE else ".env"
 load_dotenv(dotenv_path=dotenv_path)
 
+try:
+    base_path = sys._MEIPASS
+except Exception:
+    base_path = os.path.abspath(".")
+
 logger = logging.getLogger()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] - %(message)s")
 
@@ -27,8 +32,8 @@ from bolletta_sync.providers.fastweb_energia import FastwebEnergia
 from bolletta_sync.providers.umbra_acque import UmbraAcque
 
 google_auth_scopes = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/tasks"]
-google_credentials_file = os.path.join("google_credentials.json")
-google_token_file = os.path.join("google_token.json")
+google_credentials_file = os.path.join(base_path, "google_credentials.json")
+google_token_file = os.path.join(base_path, "google_token.json")
 
 
 class Provider(Enum):
