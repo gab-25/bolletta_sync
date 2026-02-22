@@ -31,7 +31,7 @@ The application is distributed as a single executable file, no additional instal
 To install the Chromium drivers for Playwright, use the following command:
 
 ```bash
-PLAYWRIGHT_BROWSERS_PATH=~/.playwright uvx playwright install chromium
+PLAYWRIGHT_BROWSERS_PATH=~/.playwright uvx playwright@1.56.0 install chromium
 ```
 
 ## Configuration
