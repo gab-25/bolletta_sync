@@ -18,8 +18,10 @@ DEV_MODE = os.getenv("DEV_MODE") == "true"
 dotenv_path = os.path.expanduser("~/.bolletta_sync") if not DEV_MODE else ".env"
 load_dotenv(dotenv_path=dotenv_path)
 
+os.environ["PLAYWRIGHT_BROWSERS_PATH"] = os.path.expanduser("~/.playwright")
+
 try:
-    base_path = sys._MEIPASS
+    base_path = sys._MEIPASS  # pyright: ignore[reportAttributeAccessIssue]
 except Exception:
     base_path = os.path.abspath(".")
 
@@ -53,16 +55,6 @@ class SyncParams(BaseModel):
         if self.start_date.year != self.end_date.year:
             raise ValueError("start_date and end_date must be in the same year")
         return self
-
-
-def install_playwright():
-    pw_browsers = os.path.expanduser("~/.playwright")
-
-    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = pw_browsers
-
-    if not os.path.exists(pw_browsers):
-        logger.info("Playwright browsers not found, installing chromium browser...")
-        subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=True)
 
 
 async def sync(params: SyncParams, google_credentials: Credentials, brower: Browser):
@@ -106,26 +98,29 @@ async def get_google_credentials() -> Credentials:
         google_credentials = Credentials.from_authorized_user_file(google_token_file, google_auth_scopes)
     else:
         logger.info("Google credentials not found, starting Google OAuth flow")
-        await google_auth()
+        google_credentials = await google_auth()
 
-    if google_credentials and google_credentials.expired:
+    if google_credentials is None:
+        raise Exception("Google credentials not found!")
+
+    if google_credentials.expired:
         logger.info("Google credentials expired, refreshing")
         google_credentials.refresh(AuthRequest())
 
     return google_credentials
 
 
-async def google_auth():
+async def google_auth() -> Credentials:
     flow = InstalledAppFlow.from_client_secrets_file(google_credentials_file, google_auth_scopes)
     credentials = flow.run_local_server(port=0)
 
     with open(google_token_file, "w") as token:
         token.write(credentials.to_json())
 
+    return credentials  # type: ignore[reportReturnType]
 
-async def main(providers: list[Provider] = None, start_date: date = None, end_date: date = None):
-    install_playwright()
 
+async def main(providers: list[Provider] | None = None, start_date: date | None = None, end_date: date | None = None):
     google_credentials = await get_google_credentials()
 
     start_date = start_date if start_date else date.today() - timedelta(days=10)
