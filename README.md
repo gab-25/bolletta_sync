@@ -26,6 +26,14 @@ Download the latest release for your platform:
 
 The application is distributed as a single executable file, no additional installation steps required.
 
+## Playwright Drivers
+
+To install the Chromium drivers for Playwright, use the following command:
+
+```bash
+PLAYWRIGHT_BROWSERS_PATH=~/.playwright uvx playwright@1.56.0 install chromium
+```
+
 ## Configuration
 
 Create a file named `.bolletta_sync` in your home directory (e.g., `C:\Users\YourName\.bolletta_sync` or `/home/YourName/.bolletta_sync`).
