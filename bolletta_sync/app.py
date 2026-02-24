@@ -8,9 +8,9 @@ from threading import Thread
 
 import customtkinter as ctk
 
-from bolletta_sync.main import Provider, main, logger, base_path
+from bolletta_sync.main import Provider, main, logger, asset_path
 
-pyproject = os.path.join(base_path, "pyproject.toml")
+pyproject = os.path.join(asset_path, "pyproject.toml")
 
 
 class TextBoxHandler(StreamHandler):
