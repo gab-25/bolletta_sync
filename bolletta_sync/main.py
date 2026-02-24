@@ -16,7 +16,7 @@ DEV_MODE = os.getenv("DEV_MODE") == "true"
 
 try:
     asset_path = sys._MEIPASS  # pyright: ignore[reportAttributeAccessIssue]
-    config_path = os.path.expanduser("~/bolletta-sync")
+    config_path = os.path.expanduser("~/.bolletta-sync")
 except Exception:
     asset_path = os.path.abspath(".")
     config_path = os.path.abspath(".")

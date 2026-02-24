@@ -36,7 +36,7 @@ PLAYWRIGHT_BROWSERS_PATH=~/.playwright uvx playwright@1.56.0 install chromium
 
 ## Configuration
 
-Create a file named `settings` in your home directory (e.g., `C:\Users\YourName\bolletta-sync\settings` or `/home/YourName/bolletta-sync/settings`).
+Create a file named `settings` in your home directory (e.g., `C:\Users\YourName\.bolletta-sync\settings` or `/home/YourName/.bolletta-sync/settings`).
 The file must contain the following key-value pairs (adjust values as needed):
 
 ```plain text
