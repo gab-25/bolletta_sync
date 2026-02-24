@@ -14,15 +14,17 @@ from pydantic import BaseModel, model_validator
 
 DEV_MODE = os.getenv("DEV_MODE") == "true"
 
-dotenv_path = os.path.expanduser("~/.bolletta_sync") if not DEV_MODE else ".env"
+try:
+    asset_path = sys._MEIPASS  # pyright: ignore[reportAttributeAccessIssue]
+    config_path = os.path.expanduser("~/.config/bolletta-sync")
+except Exception:
+    asset_path = os.path.abspath(".")
+    config_path = os.path.abspath(".")
+
+dotenv_path = os.path.join(config_path, "settings") if not DEV_MODE else ".env"
 load_dotenv(dotenv_path=dotenv_path)
 
 os.environ["PLAYWRIGHT_BROWSERS_PATH"] = os.path.expanduser("~/.playwright")
-
-try:
-    base_path = sys._MEIPASS  # pyright: ignore[reportAttributeAccessIssue]
-except Exception:
-    base_path = os.path.abspath(".")
 
 logger = logging.getLogger()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] - %(message)s")
@@ -33,8 +35,8 @@ from bolletta_sync.providers.fastweb_energia import FastwebEnergia
 from bolletta_sync.providers.umbra_acque import UmbraAcque
 
 google_auth_scopes = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/tasks"]
-google_credentials_file = os.path.join(base_path, "google_credentials.json")
-google_token_file = os.path.join(base_path, "google_token.json")
+google_credentials_file = os.path.join(asset_path, "google_credentials.json")
+google_token_file = os.path.join(config_path, "google_token.json")
 
 
 class Provider(Enum):
