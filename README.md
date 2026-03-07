@@ -1,14 +1,12 @@
 # Bolletta Sync
 
-A desktop application for synchronizing and managing utility invoices across different Italian providers.
+A web service for synchronizing and managing utility invoices across different Italian providers.
 
 ## Features
 
-- Date range selection for invoice synchronization
+- REST API for invoice synchronization
 - Support for multiple Italian utility providers
-- Real-time logging of synchronization progress
-- User-friendly graphical interface
-- Cross-platform support (Windows and Linux)
+- Background task execution for syncing processes
 - Automatic backup of invoices to Google Drive
 - Creation of reminders for due dates in Google Tasks
 
@@ -54,8 +52,23 @@ ENI_PASSWORD=
 
 ## Usage
 
-1. Launch the application
-2. Select the date range for bill synchronization
-3. Check the providers you want to sync
-4. Click the "SYNC" button to start the process
-5. Monitor the progress in the output area
+1. **Launch the API server**:
+   ```bash
+   python -m bolletta_sync.main
+   ```
+   The service will be available at `http://localhost:8000`. You can access the interactive API documentation at `http://localhost:8000/docs`.
+
+2. **Check available providers**:
+   `GET /providers`
+
+3. **Trigger a synchronization**:
+   `POST /sync`
+   
+   Request body example:
+   ```json
+   {
+     "providers": ["fastweb", "eni"],
+     "start_date": "2024-01-01",
+     "end_date": "2024-02-01"
+   }
+   ```

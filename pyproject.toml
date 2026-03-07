@@ -1,6 +1,6 @@
 [project]
 name = "bolletta-sync"
-version = "0.7.2"
+version = "0.8.0"
 description = ""
 authors = [
     {name = "Gabriele Sorci", email = "gabrielesorci.25@gmail.com"}
@@ -16,9 +16,10 @@ dependencies = [
     "google-auth-oauthlib==1.2.3",
     "playwright==1.56.0",
     "playwright-recaptcha==0.5.1",
-    'standard-aifc==3.13.0',
+    "standard-aifc==3.13.0",
     "asyncio==4.0.0",
-    "customtkinter==5.2.2"
+    "fastapi==0.115.8",
+    "uvicorn==0.34.0"
 ]
 
 [project.optional-dependencies]
