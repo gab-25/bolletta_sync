@@ -21,9 +21,9 @@ class UmbraAcque(BaseProvider):
         await self.page.get_by_role("button", name="Accetta tutti i cookie").click()
 
         await self.page.get_by_role("textbox", name="Indirizzo email").click()
-        await self.page.get_by_role("textbox", name="Indirizzo email").fill(os.getenv("UMBRA_ACQUE_USERNAME"))
+        await self.page.get_by_role("textbox", name="Indirizzo email").fill(os.getenv("UMBRA_ACQUE_USERNAME"))  # pyright: ignore[reportArgumentType]
         await self.page.get_by_role("textbox", name="Password").click()
-        await self.page.get_by_role("textbox", name="Password").fill(os.getenv("UMBRA_ACQUE_PASSWORD"))
+        await self.page.get_by_role("textbox", name="Password").fill(os.getenv("UMBRA_ACQUE_PASSWORD"))  # pyright: ignore[reportArgumentType]
 
         async with self.page.expect_navigation():
             await self.page.get_by_role("button", name="ACCEDI").click()
@@ -73,7 +73,7 @@ class UmbraAcque(BaseProvider):
         response = requests.get(
             "https://self-service.umbraacque.com/bin/acea-myacea/download/",
             params={
-                "code": invoice.metadata["code"],
+                "code": invoice.metadata["code"],  # pyright: ignore[reportOptionalSubscript]
                 "path": "/content/acea-myacea/umbraacque/selfcare/fatture/jcr:content/content-private-par/invoices_table",
             },
             cookies=await self.get_cookies(),

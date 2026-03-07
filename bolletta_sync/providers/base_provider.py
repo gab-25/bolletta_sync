@@ -17,7 +17,7 @@ class Invoice(BaseModel):
     due_date: date
     amount: float
     client_code: str
-    metadata: dict = None
+    metadata: dict | None = None
 
 
 class BaseProvider(ABC):
@@ -34,10 +34,10 @@ class BaseProvider(ABC):
     async def get_cookies(self) -> dict:
         cookies = {}
         for cookie in await self.page.context.cookies():
-            cookies[cookie["name"]] = cookie["value"]
+            cookies[cookie["name"]] = cookie["value"]  # pyright: ignore[reportTypedDictNotRequiredAccess]
         return cookies
 
-    def _create_folder(self, folder_name: str, parent_folder_id: str = None) -> str:
+    def _create_folder(self, folder_name: str, parent_folder_id: str | None = None) -> str:
         query = f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
         if parent_folder_id:
             query += f" and '{parent_folder_id}' in parents"

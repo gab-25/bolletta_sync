@@ -21,9 +21,9 @@ class FastwebEnergia(BaseProvider):
         )
 
         await self.page.get_by_placeholder("username").click()
-        await self.page.get_by_role("textbox", name="username").fill(os.getenv("FASTWEB_ENERGIA_USERNAME"))
+        await self.page.get_by_role("textbox", name="username").fill(os.getenv("FASTWEB_ENERGIA_USERNAME"))  # pyright: ignore[reportArgumentType]
         await self.page.get_by_placeholder("password").click()
-        await self.page.get_by_role("textbox", name="password").fill(os.getenv("FASTWEB_ENERGIA_PASSWORD"))
+        await self.page.get_by_role("textbox", name="password").fill(os.getenv("FASTWEB_ENERGIA_PASSWORD"))  # pyright: ignore[reportArgumentType]
         async with self.page.expect_navigation():
             await self.page.get_by_role("link", name="Accedi").click()
 
@@ -46,7 +46,7 @@ class FastwebEnergia(BaseProvider):
                     doc_date=i["DocDateYMD"],
                     due_date=i["DocExpireDateYMD"],
                     amount=i["DocAmount"],
-                    client_code=os.getenv("FASTWEB_ENERGIA_USERNAME"),
+                    client_code=os.getenv("FASTWEB_ENERGIA_USERNAME"),  # pyright: ignore[reportArgumentType]
                 ),
                 response.json().get("invoiceList", []),
             )

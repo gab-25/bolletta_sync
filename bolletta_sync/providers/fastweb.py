@@ -14,7 +14,7 @@ class Fastweb(BaseProvider):
         super().__init__(google_credentials, page, "fastweb")
         if os.getenv("FASTWEB_CLIENT_CODE") is None:
             raise Exception("FASTWEB_CLIENT_CODE not set")
-        self.client_codes = os.getenv("FASTWEB_CLIENT_CODE").split(",")
+        self.client_codes = os.getenv("FASTWEB_CLIENT_CODE").split(",")  # pyright: ignore[reportOptionalMemberAccess]
 
     async def _login_fastweb(self):
         await self.page.goto("https://fastweb.it/myfastweb/accesso/login/")
@@ -26,9 +26,9 @@ class Fastweb(BaseProvider):
         )
 
         await self.page.get_by_placeholder("username").click()
-        await self.page.get_by_role("textbox", name="username").fill(os.getenv("FASTWEB_USERNAME"))
+        await self.page.get_by_role("textbox", name="username").fill(os.getenv("FASTWEB_USERNAME"))  # pyright: ignore[reportArgumentType]
         await self.page.get_by_placeholder("password").click()
-        await self.page.get_by_role("textbox", name="password").fill(os.getenv("FASTWEB_PASSWORD"))
+        await self.page.get_by_role("textbox", name="password").fill(os.getenv("FASTWEB_PASSWORD"))  # pyright: ignore[reportArgumentType]
         async with self.page.expect_navigation():
             await self.page.get_by_role("link", name="Accedi").click()
 
@@ -56,7 +56,7 @@ class Fastweb(BaseProvider):
             )
             soup = BeautifulSoup(response.text, "html.parser")
 
-            security_token = soup.find("input", {"name": "securityToken"}).get("value")
+            security_token = soup.find("input", {"name": "securityToken"}).get("value")  # pyright: ignore[reportOptionalMemberAccess, reportAttributeAccessIssue]
             payload = {"action": "loadInvoiceList", "securityToken": security_token}
             response = requests.post(
                 "https://fastweb.it/myfastweb/abbonamento/le-mie-fatture/ajax/index.php",
