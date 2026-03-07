@@ -118,7 +118,7 @@ class Sync:
 
         logger.info(f"{provider.value} - Invoices synced successfully")
 
-    async def run(self, headless: bool = False):
+    async def run(self, headless: bool = True):
         """Run syncs invoices for the given providers using the provided Google credentials."""
 
         async with async_playwright() as playwright:

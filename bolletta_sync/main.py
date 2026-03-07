@@ -114,7 +114,7 @@ async def trigger_sync(request: SyncRequest):
         google_credentials=google_credentials,
         providers=request.providers,
         date_range=(request.start_date, request.end_date),
-    ).run()
+    ).run(headless=not DEV_MODE)
 
     return SyncResponse(
         message=f"Sync completed for {len(request.providers)} providers from {request.start_date} to {request.end_date}",
