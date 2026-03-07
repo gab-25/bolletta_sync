@@ -33,8 +33,11 @@ class UmbraAcque(BaseProvider):
 
         await self._login_umbra_acque()
 
-        response = requests.get("https://self-service.umbraacque.com/bin/acea-myacea/utenze/", params={
-            "path": "/content/acea-myacea/umbraacque/selfcare/privato"}, cookies=await self.get_cookies())
+        response = requests.get(
+            "https://self-service.umbraacque.com/bin/acea-myacea/utenze/",
+            params={"path": "/content/acea-myacea/umbraacque/selfcare/privato"},
+            cookies=await self.get_cookies(),
+        )
         response.raise_for_status()
         contract_pk = response.json().get("data")[0]["contractPk"]
 
@@ -42,21 +45,25 @@ class UmbraAcque(BaseProvider):
             "https://self-service.umbraacque.com/bin/acea-myacea/invoicesAndBalance/",
             params={
                 "path": "/content/acea-myacea/umbraacque/selfcare/fatture/jcr:content/content-private-par/invoices_table",
-                "contractPk": contract_pk
+                "contractPk": contract_pk,
             },
-            cookies=await self.get_cookies()
+            cookies=await self.get_cookies(),
         )
         response.raise_for_status()
         invoice_list = list(
-            map(lambda i: Invoice(id=i["invoiceNumber"],
-                                  doc_date=datetime.strptime(i["issueDate"], "%d/%m/%Y"),
-                                  due_date=datetime.strptime(i["expiryDate"], "%d/%m/%Y"),
-                                  amount=i["total"],
-                                  metadata={"code": unquote(i["documentLink"]).split("&path=")[0]},
-                                  client_code=i["contractId"]),
-                response.json().get("body")["invoices"]))
-        invoice_list_filtered = list(
-            filter(lambda invoice: start_date <= invoice.doc_date <= end_date, invoice_list))
+            map(
+                lambda i: Invoice(
+                    id=i["invoiceNumber"],
+                    doc_date=datetime.strptime(i["issueDate"], "%d/%m/%Y"),
+                    due_date=datetime.strptime(i["expiryDate"], "%d/%m/%Y"),
+                    amount=i["total"],
+                    metadata={"code": unquote(i["documentLink"]).split("&path=")[0]},
+                    client_code=i["contractId"],
+                ),
+                response.json().get("body")["invoices"],
+            )
+        )
+        invoice_list_filtered = list(filter(lambda invoice: start_date <= invoice.doc_date <= end_date, invoice_list))
         if invoice_list_filtered:
             invoices.extend(invoice_list_filtered)
 
@@ -67,8 +74,10 @@ class UmbraAcque(BaseProvider):
             "https://self-service.umbraacque.com/bin/acea-myacea/download/",
             params={
                 "code": invoice.metadata["code"],
-                "path": "/content/acea-myacea/umbraacque/selfcare/fatture/jcr:content/content-private-par/invoices_table"
-            }, cookies=await self.get_cookies())
+                "path": "/content/acea-myacea/umbraacque/selfcare/fatture/jcr:content/content-private-par/invoices_table",
+            },
+            cookies=await self.get_cookies(),
+        )
 
         if response.status_code != 200:
             raise Exception(f"Failed to download invoice PDF: {response.url} HTTP {response.status_code}")

@@ -14,8 +14,11 @@ class FastwebEnergia(BaseProvider):
     async def _login_fastweb_energia(self):
         await self.page.goto("https://www.fastweb.it/myfastweb-energia/login/")
 
-        await self.page.locator("iframe[title=\"Cookie center\"]").content_frame.get_by_role("button",
-                                                                                             name="Accetta tutti").click()
+        await (
+            self.page.locator('iframe[title="Cookie center"]')
+            .content_frame.get_by_role("button", name="Accetta tutti")
+            .click()
+        )
 
         await self.page.get_by_placeholder("username").click()
         await self.page.get_by_role("textbox", name="username").fill(os.getenv("FASTWEB_ENERGIA_USERNAME"))
@@ -37,11 +40,18 @@ class FastwebEnergia(BaseProvider):
         )
 
         invoice_list = list(
-            map(lambda i: Invoice(id=i["NumDoc"], doc_date=i["DocDateYMD"], due_date=i["DocExpireDateYMD"],
-                                  amount=i["DocAmount"], client_code=os.getenv("FASTWEB_ENERGIA_USERNAME")),
-                response.json().get("invoiceList", [])))
-        invoice_list_filtered = list(
-            filter(lambda invoice: start_date <= invoice.doc_date <= end_date, invoice_list))
+            map(
+                lambda i: Invoice(
+                    id=i["NumDoc"],
+                    doc_date=i["DocDateYMD"],
+                    due_date=i["DocExpireDateYMD"],
+                    amount=i["DocAmount"],
+                    client_code=os.getenv("FASTWEB_ENERGIA_USERNAME"),
+                ),
+                response.json().get("invoiceList", []),
+            )
+        )
+        invoice_list_filtered = list(filter(lambda invoice: start_date <= invoice.doc_date <= end_date, invoice_list))
         if invoice_list_filtered:
             invoices.extend(invoice_list_filtered)
 
