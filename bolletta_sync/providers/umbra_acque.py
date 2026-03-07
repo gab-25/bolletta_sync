@@ -1,4 +1,3 @@
-import logging
 import os
 from datetime import date, datetime
 from urllib.parse import unquote
@@ -7,8 +6,6 @@ import requests
 from playwright.async_api import Page
 
 from bolletta_sync.providers.base_provider import BaseProvider, Invoice
-
-logger = logging.getLogger(__name__)
 
 
 class UmbraAcque(BaseProvider):

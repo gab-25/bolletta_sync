@@ -1,3 +1,4 @@
+import logging
 from abc import ABC
 from datetime import date
 from io import BytesIO
@@ -7,8 +8,6 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from playwright.async_api import Page
 from pydantic import BaseModel
-
-from bolletta_sync.sync import logger
 
 
 class Invoice(BaseModel):
@@ -27,6 +26,8 @@ class BaseProvider(ABC):
         self._namespace = namespace
         self.namespace_folder_id = None
         self.namespace_tasklist_id = None
+
+        self.logger = logging.getLogger(namespace)
 
         self.drive_service = build("drive", "v3", credentials=self._google_credentials, cache_discovery=False)
         self.tasks_service = build("tasks", "v1", credentials=self._google_credentials, cache_discovery=False)
@@ -96,14 +97,14 @@ class BaseProvider(ABC):
             .execute()
         )
         if results.get("files"):
-            logger.info(f"file {file_name} already exists in google drive")
+            self.logger.info(f"file {file_name} already exists in google drive")
             return True
 
         file_metadata = {"name": file_name, "parents": [self.namespace_folder_id]}
         media = MediaIoBaseUpload(BytesIO(invoice_pdf), mimetype="application/pdf")
         file = self.drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
 
-        logger.info(f"create file {file_name} in google drive")
+        self.logger.info(f"create file {file_name} in google drive")
 
         return True
 
@@ -115,7 +116,7 @@ class BaseProvider(ABC):
         tasks = self.tasks_service.tasks().list(tasklist=self.namespace_tasklist_id).execute()
         for task in tasks.get("items", []):
             if task["title"] == task_title:
-                logger.info(f"task for invoice {invoice.id} already exists")
+                self.logger.info(f"task for invoice {invoice.id} already exists")
                 return True
 
         task_metadata = {
@@ -125,6 +126,6 @@ class BaseProvider(ABC):
         }
         task = self.tasks_service.tasks().insert(tasklist=self.namespace_tasklist_id, body=task_metadata).execute()
 
-        logger.info(f"created task for invoice {invoice.id}")
+        self.logger.info(f"created task for invoice {invoice.id}")
 
         return True
