@@ -3,9 +3,9 @@ import os
 import importlib.metadata
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
-from typing import List, Optional
+from typing import List
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel, Field, model_validator
 from dotenv import load_dotenv
 
@@ -108,9 +108,3 @@ async def trigger_sync(request: SyncRequest):
         message=f"Sync completed for {len(request.providers)} providers from {request.start_date} to {request.end_date}",
         status="success",
     )
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
