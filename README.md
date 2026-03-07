@@ -1,61 +1,107 @@
 # Bolletta Sync
 
-A desktop application for synchronizing and managing utility invoices across different Italian providers.
+Bolletta Sync is a Python-based web service designed to automate the synchronization of utility invoices from various Italian providers to Google Drive and Google Tasks. It uses Playwright for web scraping and the Google API for cloud integration.
 
 ## Features
 
-- Date range selection for invoice synchronization
-- Support for multiple Italian utility providers
-- Real-time logging of synchronization progress
-- User-friendly graphical interface
-- Cross-platform support (Windows and Linux)
-- Automatic backup of invoices to Google Drive
-- Creation of reminders for due dates in Google Tasks
+- **Multi-Provider Support**: Automatically fetch invoices from:
+  - Fastweb (Fixed line)
+  - Fastweb Energia
+  - Eni Plenitude (with CAPSolver integration for ReCaptcha)
+  - Umbra Acque
+- **Google Drive Integration**: Automatically uploads invoice PDFs to Google Drive, organized by year and provider (e.g., `bollette/2025/fastweb/...`).
+- **Google Tasks Integration**: Creates tasks for invoice payment deadlines with the due date and amount.
+- **REST API**: Simple FastAPI interface to trigger synchronization and check status.
 
-## Requirements
+## Prerequisites
 
-- Python 3.13 or higher
-- Provider credentials (configured via environment variables)
+- **Python 3.13** or higher.
+- **Google Cloud Project**: You need a project with the Google Drive API and Google Tasks API enabled.
+- **Google Credentials**: A `google_credentials.json` file (Desktop application type) placed in the project root.
+- **CAPSolver API Key**: Required for solving ReCaptcha on the Eni Plenitude portal.
 
 ## Installation
 
-Download the latest release for your platform:
+1. **Clone the repository**:
+   ```bash
+   git clone <repository-url>
+   cd bolletta_sync
+   ```
 
-- Windows: `bolletta-sync_windows.tar.gz`
-- Linux: `bolletta-sync_linux.tar.gz`
+2. **Install dependencies**:
+   ```bash
+   poetry install
+   ```
 
-The application is distributed as a single executable file, no additional installation steps required.
-
-## Playwright Drivers
-
-To install the Chromium drivers for Playwright, use the following command:
-
-```bash
-PLAYWRIGHT_BROWSERS_PATH=~/.playwright uvx playwright@1.56.0 install chromium
-```
+3. **Install Playwright Browsers**:
+   ```bash
+   poetry run playwright install chromium
+   ```
 
 ## Configuration
 
-Create a file named `settings` in your home directory (e.g., `C:\Users\YourName\.bolletta-sync\settings` or `/home/YourName/.bolletta-sync/settings`).
-The file must contain the following key-value pairs (adjust values as needed):
+The application uses environment variables for configuration. Create a `.env` file in the project root with the following keys:
 
-```plain text
-CAPSOLVER_API_KEY=
-FASTWEB_USERNAME=
-FASTWEB_PASSWORD=
-FASTWEB_CLIENT_CODE=
-FASTWEB_ENERGIA_USERNAME=
-FASTWEB_ENERGIA_PASSWORD=
-UMBRA_ACQUE_USERNAME=
-UMBRA_ACQUE_PASSWORD=
-ENI_USERNAME=
-ENI_PASSWORD=
+```env
+# General
+CAPSOLVER_API_KEY=your_capsolver_key
+
+# Fastweb
+FASTWEB_USERNAME=your_username
+FASTWEB_PASSWORD=your_password
+FASTWEB_CLIENT_CODE=code1,code2  # Comma-separated if multiple
+
+# Fastweb Energia
+FASTWEB_ENERGIA_USERNAME=your_username
+FASTWEB_ENERGIA_PASSWORD=your_password
+
+# Eni Plenitude
+ENI_USERNAME=your_email
+ENI_PASSWORD=your_password
+
+# Umbra Acque
+UMBRA_ACQUE_USERNAME=your_email
+UMBRA_ACQUE_PASSWORD=your_password
+
+# App Mode
+DEV_MODE=false
 ```
+
+### Google Authentication
+
+On the first run, the application will attempt to open a browser window for Google OAuth2 authentication. Once authorized, it will save a `google_token.json` file in the project root for future sessions.
 
 ## Usage
 
-1. Launch the application
-2. Select the date range for bill synchronization
-3. Check the providers you want to sync
-4. Click the "SYNC" button to start the process
-5. Monitor the progress in the output area
+### Start the API Server
+
+Run the server using FastAPI:
+
+```bash
+poetry run fastapi dev bolletta_sync/main.py
+```
+
+The service will be available at `http://localhost:8000`.
+
+### API Endpoints
+
+- **GET `/`**: Check API status and version.
+- **GET `/providers`**: List supported providers.
+- **POST `/sync`**: Trigger a synchronization process.
+  
+  **Request Body Example**:
+  ```json
+  {
+    "providers": ["fastweb", "eni"],
+    "start_date": "2025-01-01",
+    "end_date": "2025-02-01"
+  }
+  ```
+  *If `providers` is omitted, all providers will be synced. `start_date` defaults to 10 days ago, and `end_date` defaults to today.*
+
+## Project Structure
+
+- `bolletta_sync/main.py`: FastAPI application and entry point.
+- `bolletta_sync/sync.py`: Main logic for orchestration and Google Auth.
+- `bolletta_sync/providers/`: contains individual scrapers for each utility provider.
+  - `base_provider.py`: Abstract class with shared Google Drive/Tasks logic.

@@ -5,7 +5,6 @@ import requests
 from bs4 import BeautifulSoup
 from playwright.async_api import Page
 
-from bolletta_sync.main import logger
 from bolletta_sync.providers.base_provider import BaseProvider, Invoice
 
 
@@ -14,18 +13,21 @@ class Fastweb(BaseProvider):
         super().__init__(google_credentials, page, "fastweb")
         if os.getenv("FASTWEB_CLIENT_CODE") is None:
             raise Exception("FASTWEB_CLIENT_CODE not set")
-        self.client_codes = os.getenv("FASTWEB_CLIENT_CODE").split(",")
+        self.client_codes = os.getenv("FASTWEB_CLIENT_CODE").split(",")  # pyright: ignore[reportOptionalMemberAccess]
 
     async def _login_fastweb(self):
         await self.page.goto("https://fastweb.it/myfastweb/accesso/login/")
 
-        await self.page.locator("iframe[title=\"Cookie center\"]").content_frame.get_by_role("button",
-                                                                                             name="Accetta tutti").click()
+        await (
+            self.page.locator('iframe[title="Cookie center"]')
+            .content_frame.get_by_role("button", name="Accetta tutti")
+            .click()
+        )
 
         await self.page.get_by_placeholder("username").click()
-        await self.page.get_by_role("textbox", name="username").fill(os.getenv("FASTWEB_USERNAME"))
+        await self.page.get_by_role("textbox", name="username").fill(os.getenv("FASTWEB_USERNAME"))  # pyright: ignore[reportArgumentType]
         await self.page.get_by_placeholder("password").click()
-        await self.page.get_by_role("textbox", name="password").fill(os.getenv("FASTWEB_PASSWORD"))
+        await self.page.get_by_role("textbox", name="password").fill(os.getenv("FASTWEB_PASSWORD"))  # pyright: ignore[reportArgumentType]
         async with self.page.expect_navigation():
             await self.page.get_by_role("link", name="Accedi").click()
 
@@ -45,14 +47,15 @@ class Fastweb(BaseProvider):
         await self._login_fastweb()
 
         for client_code in self.client_codes:
-            logger.info(f"fastweb - getting invoices for client {client_code}")
+            self.logger.info(f"fastweb - getting invoices for client {client_code}")
             await self._select_profile(client_code)
 
-            response = requests.get("https://fastweb.it/myfastweb/abbonamento/le-mie-fatture/",
-                                    cookies=await self.get_cookies())
+            response = requests.get(
+                "https://fastweb.it/myfastweb/abbonamento/le-mie-fatture/", cookies=await self.get_cookies()
+            )
             soup = BeautifulSoup(response.text, "html.parser")
 
-            security_token = soup.find("input", {"name": "securityToken"}).get("value")
+            security_token = soup.find("input", {"name": "securityToken"}).get("value")  # pyright: ignore[reportOptionalMemberAccess, reportAttributeAccessIssue]
             payload = {"action": "loadInvoiceList", "securityToken": security_token}
             response = requests.post(
                 "https://fastweb.it/myfastweb/abbonamento/le-mie-fatture/ajax/index.php",
@@ -62,11 +65,20 @@ class Fastweb(BaseProvider):
             )
 
             invoice_list = list(
-                map(lambda i: Invoice(id=i["NumDoc"], doc_date=i["DocDateYMD"], due_date=i["DocExpireDateYMD"],
-                                      amount=i["DocAmount"], client_code=client_code),
-                    response.json().get("invoiceList", [])))
+                map(
+                    lambda i: Invoice(
+                        id=i["NumDoc"],
+                        doc_date=i["DocDateYMD"],
+                        due_date=i["DocExpireDateYMD"],
+                        amount=i["DocAmount"],
+                        client_code=client_code,
+                    ),
+                    response.json().get("invoiceList", []),
+                )
+            )
             invoice_list_filtered = list(
-                filter(lambda invoice: start_date <= invoice.doc_date <= end_date, invoice_list))
+                filter(lambda invoice: start_date <= invoice.doc_date <= end_date, invoice_list)
+            )
             if invoice_list_filtered:
                 invoices.extend(invoice_list_filtered)
 

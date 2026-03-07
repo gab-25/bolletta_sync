@@ -1,137 +1,122 @@
-import asyncio
 import logging
 import os
-import sys
+import importlib.metadata
+from contextlib import asynccontextmanager
 from datetime import date, timedelta
-from enum import Enum
+from typing import List
 
+from fastapi import FastAPI
+from pydantic import BaseModel, Field, model_validator
 from dotenv import load_dotenv
-from google.auth.transport.requests import Request as AuthRequest
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from playwright.async_api import async_playwright, Browser
-from pydantic import BaseModel, model_validator
+
+from bolletta_sync.sync import Provider, Sync, get_google_credentials
+
+load_dotenv()
 
 DEV_MODE = os.getenv("DEV_MODE") == "true"
 
-try:
-    asset_path = sys._MEIPASS  # pyright: ignore[reportAttributeAccessIssue]
-    config_path = os.path.expanduser("~/.bolletta-sync")
-except Exception:
-    asset_path = os.path.abspath(".")
-    config_path = os.path.abspath(".")
-
-dotenv_path = os.path.join(config_path, "settings") if not DEV_MODE else ".env"
-load_dotenv(dotenv_path=dotenv_path)
-
-os.environ["PLAYWRIGHT_BROWSERS_PATH"] = os.path.expanduser("~/.playwright")
-
-logger = logging.getLogger()
+# Logging Configuration
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] - %(message)s")
-
-from bolletta_sync.providers.eni import Eni
-from bolletta_sync.providers.fastweb import Fastweb
-from bolletta_sync.providers.fastweb_energia import FastwebEnergia
-from bolletta_sync.providers.umbra_acque import UmbraAcque
-
-google_auth_scopes = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/tasks"]
-google_credentials_file = os.path.join(asset_path, "google_credentials.json")
-google_token_file = os.path.join(config_path, "google_token.json")
+logger = logging.getLogger(__name__)
 
 
-class Provider(Enum):
-    FASTWEB = "fastweb"
-    FASTEWEB_ENERGIA = "fastweb_energia"
-    ENI = "eni"
-    UMBRA_ACQUE = "umbra_acque"
+@asynccontextmanager
+async def lifespan(app: FastAPI):  # noqa: D103
+    # Perform Google authentication on startup
+    logger.info("Initializing Google credentials...")
+    app.state.google_credentials = await get_google_credentials()
+    logger.info("Google credentials initialized successfully")
+    yield
 
 
-class SyncParams(BaseModel):
-    provider: Provider
-    start_date: date
-    end_date: date
+try:
+    __version__ = importlib.metadata.version("bolletta-sync")
+except importlib.metadata.PackageNotFoundError:
+    __version__ = "0.0.0"
+
+app = FastAPI(
+    title="Bolletta Sync API",
+    description="Web service to sync invoices from various providers to Google Drive/Tasks",
+    version=__version__,
+    lifespan=lifespan,
+)
+
+
+class SyncRequest(BaseModel):
+    """Sync request model."""
+
+    providers: List[Provider] = Field(
+        default_factory=lambda: list(Provider),
+        description="List of providers to sync. Defaults to all providers.",
+    )
+    start_date: date = Field(
+        default_factory=lambda: date.today() - timedelta(days=10),
+        description="Start date for syncing (YYYY-MM-DD). Defaults to 10 days ago.",
+    )
+    end_date: date = Field(
+        default_factory=date.today,
+        description="End date for syncing (YYYY-MM-DD). Defaults to today.",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "providers": [p.value for p in Provider],
+                    "start_date": (date.today() - timedelta(days=10)).isoformat(),
+                    "end_date": date.today().isoformat(),
+                }
+            ]
+        }
+    }
 
     @model_validator(mode="after")
-    def validate_year(self):
-        if self.start_date.year != self.end_date.year:
-            raise ValueError("start_date and end_date must be in the same year")
+    def validate_dates(self) -> "SyncRequest":
+        """Validate that start_date is before end_date."""
+        if self.start_date > self.end_date:
+            raise ValueError("start_date cannot be after end_date")
         return self
 
 
-async def sync(params: SyncParams, google_credentials: Credentials, brower: Browser):
-    logger.info(f"{params.provider.value} - Syncing invoices from {params.start_date} to {params.end_date}")
+class SyncResponse(BaseModel):
+    """Sync response model."""
 
-    page = await brower.new_page(locale="en-EN")
-    instance = None
-
-    if params.provider == Provider.FASTWEB:
-        instance = Fastweb(google_credentials, page)
-    elif params.provider == Provider.FASTEWEB_ENERGIA:
-        instance = FastwebEnergia(google_credentials, page)
-    elif params.provider == Provider.ENI:
-        instance = Eni(google_credentials, page)
-    elif params.provider == Provider.UMBRA_ACQUE:
-        instance = UmbraAcque(google_credentials, page)
-
-    if instance is None:
-        raise Exception("Unknown provider")
-
-    try:
-        logger.info(f"{params.provider.value} - Syncing invoices")
-        invoces = await instance.get_invoices(params.start_date, params.end_date)
-        logger.info(f"{params.provider.value} - Synced {len(invoces)} invoices")
-        await instance.check_namespace()
-        for invoce in invoces:
-            doc = await instance.download_invoice(invoce)
-            await instance.save_invoice(invoce, doc)
-            await instance.set_expire_invoice(invoce)
-    except Exception as e:
-        logger.error(f"{params.provider.value} - Error while syncing cause: {e}")
-        raise e
-
-    logger.info(f"{params.provider.value} - Invoices synced successfully")
+    message: str
+    status: str
 
 
-async def get_google_credentials() -> Credentials:
-    google_credentials = None
-
-    if os.path.exists(google_token_file):
-        google_credentials = Credentials.from_authorized_user_file(google_token_file, google_auth_scopes)
-    else:
-        logger.info("Google credentials not found, starting Google OAuth flow")
-        google_credentials = await google_auth()
-
-    if google_credentials is None:
-        raise Exception("Google credentials not found!")
-
-    if google_credentials.expired:
-        logger.info("Google credentials expired, refreshing")
-        google_credentials.refresh(AuthRequest())
-
-    return google_credentials
+@app.get("/")
+async def root():
+    """
+    Return the API status and version.
+    """
+    return {"message": "Bolletta Sync API is running", "version": app.version}
 
 
-async def google_auth() -> Credentials:
-    flow = InstalledAppFlow.from_client_secrets_file(google_credentials_file, google_auth_scopes)
-    credentials = flow.run_local_server(port=0)
-
-    with open(google_token_file, "w") as token:
-        token.write(credentials.to_json())
-
-    return credentials  # type: ignore[reportReturnType]
+@app.get("/providers")
+async def get_providers():
+    """
+    Return the list of available providers.
+    """
+    return {"providers": [p.value for p in Provider]}
 
 
-async def main(providers: list[Provider] | None = None, start_date: date | None = None, end_date: date | None = None):
-    google_credentials = await get_google_credentials()
+@app.post("/sync", response_model=SyncResponse)
+async def trigger_sync(request: SyncRequest):
+    """
+    Triggers the synchronization process and waits for it to finish.
+    """
+    # Get credentials from app state
+    google_credentials = app.state.google_credentials
 
-    start_date = start_date if start_date else date.today() - timedelta(days=10)
-    end_date = end_date if end_date else date.today()
-    providers = providers if providers else list(Provider)
+    # Run the main sync process synchronously
+    await Sync(
+        google_credentials=google_credentials,
+        providers=request.providers,
+        date_range=(request.start_date, request.end_date),
+    ).run(headless=not DEV_MODE)
 
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=DEV_MODE == False)
-        tasks = []
-        for provider in providers:
-            params = SyncParams(provider=provider, start_date=start_date, end_date=end_date)
-            tasks.append(sync(params, google_credentials, browser))
-        await asyncio.gather(*tasks)
+    return SyncResponse(
+        message=f"Sync completed for {len(request.providers)} providers from {request.start_date} to {request.end_date}",
+        status="success",
+    )
