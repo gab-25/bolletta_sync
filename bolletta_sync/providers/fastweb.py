@@ -5,7 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 from playwright.async_api import Page
 
-from bolletta_sync.main import logger
+from bolletta_sync.sync import logger
 from bolletta_sync.providers.base_provider import BaseProvider, Invoice
 
 
@@ -19,8 +19,11 @@ class Fastweb(BaseProvider):
     async def _login_fastweb(self):
         await self.page.goto("https://fastweb.it/myfastweb/accesso/login/")
 
-        await self.page.locator("iframe[title=\"Cookie center\"]").content_frame.get_by_role("button",
-                                                                                             name="Accetta tutti").click()
+        await (
+            self.page.locator('iframe[title="Cookie center"]')
+            .content_frame.get_by_role("button", name="Accetta tutti")
+            .click()
+        )
 
         await self.page.get_by_placeholder("username").click()
         await self.page.get_by_role("textbox", name="username").fill(os.getenv("FASTWEB_USERNAME"))
@@ -48,8 +51,9 @@ class Fastweb(BaseProvider):
             logger.info(f"fastweb - getting invoices for client {client_code}")
             await self._select_profile(client_code)
 
-            response = requests.get("https://fastweb.it/myfastweb/abbonamento/le-mie-fatture/",
-                                    cookies=await self.get_cookies())
+            response = requests.get(
+                "https://fastweb.it/myfastweb/abbonamento/le-mie-fatture/", cookies=await self.get_cookies()
+            )
             soup = BeautifulSoup(response.text, "html.parser")
 
             security_token = soup.find("input", {"name": "securityToken"}).get("value")
@@ -62,11 +66,20 @@ class Fastweb(BaseProvider):
             )
 
             invoice_list = list(
-                map(lambda i: Invoice(id=i["NumDoc"], doc_date=i["DocDateYMD"], due_date=i["DocExpireDateYMD"],
-                                      amount=i["DocAmount"], client_code=client_code),
-                    response.json().get("invoiceList", [])))
+                map(
+                    lambda i: Invoice(
+                        id=i["NumDoc"],
+                        doc_date=i["DocDateYMD"],
+                        due_date=i["DocExpireDateYMD"],
+                        amount=i["DocAmount"],
+                        client_code=client_code,
+                    ),
+                    response.json().get("invoiceList", []),
+                )
+            )
             invoice_list_filtered = list(
-                filter(lambda invoice: start_date <= invoice.doc_date <= end_date, invoice_list))
+                filter(lambda invoice: start_date <= invoice.doc_date <= end_date, invoice_list)
+            )
             if invoice_list_filtered:
                 invoices.extend(invoice_list_filtered)
 
