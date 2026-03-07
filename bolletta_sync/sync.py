@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-from datetime import date, timedelta
+from datetime import date
 from enum import Enum
 from typing import List, Tuple
 
@@ -9,7 +9,6 @@ from google.auth.transport.requests import Request as AuthRequest
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from playwright.async_api import async_playwright, Browser
-from pydantic import BaseModel, model_validator
 
 from bolletta_sync.providers.eni import Eni
 from bolletta_sync.providers.fastweb import Fastweb
@@ -68,11 +67,17 @@ async def get_google_credentials() -> Credentials:
     if google_credentials.expired:
         logger.info("Google credentials expired, refreshing")
         google_credentials.refresh(AuthRequest())
+        with open(google_token_file, "w") as token:
+            token.write(google_credentials.to_json())
 
     return google_credentials
 
 
 class Sync:
+    """
+    Syncs invoices for a list of providers over a given date range.
+    """
+
     def __init__(
         self, google_credentials: Credentials, providers: List[Provider], date_range: Tuple[date, date]
     ) -> None:

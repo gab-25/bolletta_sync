@@ -58,6 +58,18 @@ class SyncRequest(BaseModel):
         description="End date for syncing (YYYY-MM-DD). Defaults to today.",
     )
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "providers": [p.value for p in Provider],
+                    "start_date": (date.today() - timedelta(days=10)).isoformat(),
+                    "end_date": date.today().isoformat(),
+                }
+            ]
+        }
+    }
+
     @model_validator(mode="after")
     def validate_dates(self) -> "SyncRequest":
         """Validate that start_date is before end_date."""
