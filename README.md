@@ -17,7 +17,7 @@ Bolletta Sync is a Python-based web service designed to automate the synchroniza
 
 - **Python 3.13** or higher.
 - **Google Cloud Project**: You need a project with the Google Drive API and Google Tasks API enabled.
-- **Google Credentials**: A `google_credentials.json` file (Desktop application type) placed in the project root.
+- **Google Credentials**: A `google_credentials.json` file (**Web application type**) placed in the project root.
 - **CAPSolver API Key**: Required for solving ReCaptcha on the Eni Plenitude portal.
 
 ## Installation
@@ -67,9 +67,14 @@ UMBRA_ACQUE_PASSWORD=your_password
 DEV_MODE=false
 ```
 
-### Google Authentication
+### Google OAuth2 Setup
 
-On the first run, the application will attempt to open a browser window for Google OAuth2 authentication. Once authorized, it will save a `google_token.json` file in the project root for future sessions.
+1. Go to the [Google Cloud Console](https://console.cloud.google.com/).
+2. Create an **OAuth 2.0 Client ID** of type **Web Application**.
+3. Add the following to **Authorized redirect URIs**:
+   - `http://localhost:8000/auth/callback` (for local development)
+   - `https://your-domain.com/auth/callback` (for production)
+4. Download the JSON file and rename it to `google_credentials.json` in the project root.
 
 ## Usage
 
@@ -83,9 +88,18 @@ poetry run fastapi dev bolletta_sync/main.py
 
 The service will be available at `http://localhost:8000`.
 
+### Authentication Flow
+
+Before running a sync, you must authorize the application:
+
+1. Visit `http://localhost:8000/auth/login`.
+2. Complete the Google login process.
+3. Once authorized, a `google_token.json` file will be created in the project root for future sessions.
+
 ### API Endpoints
 
-- **GET `/`**: Check API status and version.
+- **GET `/`**: Check API status, version, and authentication state.
+- **GET `/auth/login`**: Start the Google OAuth2 flow.
 - **GET `/providers`**: List supported providers.
 - **POST `/sync`**: Trigger a synchronization process.
   
@@ -101,7 +115,7 @@ The service will be available at `http://localhost:8000`.
 
 ## Project Structure
 
-- `bolletta_sync/main.py`: FastAPI application and entry point.
-- `bolletta_sync/sync.py`: Main logic for orchestration and Google Auth.
+- `bolletta_sync/main.py`: FastAPI application, OAuth2 routes, and entry point.
+- `bolletta_sync/sync.py`: Main logic for orchestration and Google credential management.
 - `bolletta_sync/providers/`: contains individual scrapers for each utility provider.
   - `base_provider.py`: Abstract class with shared Google Drive/Tasks logic.

@@ -104,9 +104,11 @@ async def auth_login(request: Request):
     Initializes the Google OAuth2 flow and redirects to Google's authorization page.
     """
     redirect_uri = str(request.url_for("auth_callback"))
-    print(redirect_uri)
-    # In some proxy environments, url_for might return http instead of https
-    if not DEV_MODE and redirect_uri.startswith("http://"):
+
+    if "localhost" in redirect_uri:
+        redirect_uri = redirect_uri.replace("https://", "http://")
+
+    if not DEV_MODE and "localhost" not in redirect_uri and redirect_uri.startswith("http://"):
         redirect_uri = redirect_uri.replace("http://", "https://", 1)
 
     flow = get_google_flow(redirect_uri)
@@ -122,7 +124,11 @@ async def auth_callback(request: Request, code: str):
     Callback for Google OAuth2. Exchanges the code for tokens.
     """
     redirect_uri = str(request.url_for("auth_callback"))
-    if not DEV_MODE and redirect_uri.startswith("http://"):
+
+    if "localhost" in redirect_uri:
+        redirect_uri = redirect_uri.replace("https://", "http://")
+
+    if not DEV_MODE and "localhost" not in redirect_uri and redirect_uri.startswith("http://"):
         redirect_uri = redirect_uri.replace("http://", "https://", 1)
 
     flow = get_google_flow(redirect_uri)
