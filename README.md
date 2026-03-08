@@ -12,6 +12,7 @@ Bolletta Sync is a Python-based web service designed to automate the synchroniza
 - **Google Drive Integration**: Automatically uploads invoice PDFs to Google Drive, organized by year and provider (e.g., `bollette/2025/fastweb/...`).
 - **Google Tasks Integration**: Creates tasks for invoice payment deadlines with the due date and amount.
 - **REST API**: Simple FastAPI interface to trigger synchronization and check status.
+- **Automated Scheduling**: Automatically runs the sync process based on a configurable schedule (requires the application to be running and authenticated).
 
 ## Prerequisites
 
@@ -45,6 +46,7 @@ The application uses environment variables for configuration. Create a `.env` fi
 ```env
 # General
 CAPSOLVER_API_KEY=your_capsolver_key
+SYNC_SCHEDULE="0 0 * * *"  # Crontab expression for automated sync (default: midnight)
 
 # Fastweb
 FASTWEB_USERNAME=your_username
@@ -95,6 +97,14 @@ Before running a sync, you must authorize the application:
 1. Visit `http://localhost:8000/auth/login`.
 2. Complete the Google login process.
 3. Once authorized, a `google_token.json` file will be created in the project root for future sessions.
+
+### Automated Scheduling
+
+The application includes a built-in scheduler. Once the server is started and you have completed the [Authentication Flow](#authentication-flow), the synchronization process will automatically run according to the schedule defined in the `.env` file (variable `SYNC_SCHEDULE`).
+
+By default, it runs every night at **midnight** (`0 0 * * *`).
+
+It will attempt to sync all providers for the last 10 days. Logs will indicate the progress of these scheduled tasks.
 
 ### API Endpoints
 

@@ -10,15 +10,44 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field, model_validator
 from dotenv import load_dotenv
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from bolletta_sync.sync import Provider, Sync, get_google_credentials, get_google_flow, google_token_file
 
 load_dotenv()
 
 DEV_MODE = os.getenv("DEV_MODE") == "true"
+SYNC_SCHEDULE = os.getenv("SYNC_SCHEDULE", "0 0 * * *")
 
 # Logging Configuration
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] - %(message)s")
 logger = logging.getLogger(__name__)
+
+
+async def scheduled_sync(app: FastAPI):
+    """
+    Run the sync process for all providers.
+    """
+    logger.info("Starting scheduled sync...")
+    google_credentials = getattr(app.state, "google_credentials", None)
+
+    if not google_credentials:
+        logger.error("Scheduled sync failed: Not authenticated with Google")
+        return
+
+    # Use today - 10 days as default range, similar to SyncRequest defaults
+    start_date = date.today() - timedelta(days=10)
+    end_date = date.today()
+
+    try:
+        await Sync(
+            google_credentials=google_credentials,
+            providers=list(Provider),
+            date_range=(start_date, end_date),
+        ).run(headless=not DEV_MODE)
+        logger.info("Scheduled sync completed successfully")
+    except Exception as e:
+        logger.error(f"Scheduled sync failed: {e}")
 
 
 @asynccontextmanager
@@ -30,7 +59,28 @@ async def lifespan(app: FastAPI):  # noqa: D103
         logger.info("Google credentials initialized successfully")
     else:
         logger.warning("Google credentials not found or expired. Please visit /auth/login")
+
+    # Setup Scheduler
+    scheduler = AsyncIOScheduler()
+    try:
+        trigger = CronTrigger.from_crontab(SYNC_SCHEDULE)
+    except Exception as e:
+        logger.error(f"Invalid SYNC_SCHEDULE '{SYNC_SCHEDULE}': {e}. Falling back to midnight.")
+        trigger = CronTrigger(hour=0, minute=0)
+
+    scheduler.add_job(
+        scheduled_sync,
+        trigger,
+        args=[app],
+        id="daily_sync",
+        name=f"Daily sync (schedule: {SYNC_SCHEDULE})",
+        replace_existing=True,
+    )
+    scheduler.start()
+    logger.info(f"Scheduler started with schedule: {SYNC_SCHEDULE}")
     yield
+    scheduler.shutdown()
+    logger.info("Scheduler shut down")
 
 
 try:
