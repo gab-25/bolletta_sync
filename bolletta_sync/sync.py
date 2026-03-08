@@ -3,11 +3,11 @@ import logging
 import os
 from datetime import date
 from enum import Enum
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 from google.auth.transport.requests import Request as AuthRequest
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google_auth_oauthlib.flow import Flow
 from playwright.async_api import async_playwright, Browser
 
 from bolletta_sync.providers.eni import Eni
@@ -32,43 +32,43 @@ class Provider(Enum):
     UMBRA_ACQUE = "umbra_acque"
 
 
-async def google_auth() -> Credentials:
+def get_google_flow(redirect_uri: str) -> Flow:
     """
-    Starts the Google OAuth flow to obtain user credentials.
+    Creates a Google OAuth flow instance for a Web application.
     """
     if not os.path.exists(google_credentials_file):
         raise FileNotFoundError(f"Google credentials file not found at {google_credentials_file}")
 
-    flow = InstalledAppFlow.from_client_secrets_file(google_credentials_file, google_auth_scopes)
-    credentials = flow.run_local_server(port=0)
-
-    with open(google_token_file, "w") as token:
-        token.write(credentials.to_json())
-
-    return credentials  # type: ignore[reportReturnType]
+    return Flow.from_client_secrets_file(
+        google_credentials_file,
+        scopes=google_auth_scopes,
+        redirect_uri=redirect_uri,
+    )
 
 
-async def get_google_credentials() -> Credentials:
+async def get_google_credentials() -> Optional[Credentials]:
     """
-    Loads Google credentials from a file or starts the OAuth flow if not found.
+    Loads Google credentials from the token file.
     Refreshes the credentials if they are expired.
+    Returns None if no token exists.
     """
     google_credentials = None
 
     if os.path.exists(google_token_file):
         google_credentials = Credentials.from_authorized_user_file(google_token_file, google_auth_scopes)
     else:
-        logger.info("Google credentials not found, starting Google OAuth flow")
-        google_credentials = await google_auth()
-
-    if google_credentials is None:
-        raise Exception("Google credentials not found!")
+        logger.info("Google token file not found.")
+        return None
 
     if google_credentials.expired:
         logger.info("Google credentials expired, refreshing")
-        google_credentials.refresh(AuthRequest())
-        with open(google_token_file, "w") as token:
-            token.write(google_credentials.to_json())
+        try:
+            await asyncio.to_thread(google_credentials.refresh, AuthRequest())
+            with open(google_token_file, "w") as token:
+                token.write(google_credentials.to_json())
+        except Exception as e:
+            logger.error(f"Failed to refresh Google credentials: {e}")
+            return None
 
     return google_credentials
 

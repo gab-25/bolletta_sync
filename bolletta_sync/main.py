@@ -5,11 +5,12 @@ from contextlib import asynccontextmanager
 from datetime import date, timedelta
 from typing import List
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field, model_validator
 from dotenv import load_dotenv
 
-from bolletta_sync.sync import Provider, Sync, get_google_credentials
+from bolletta_sync.sync import Provider, Sync, get_google_credentials, get_google_flow, google_token_file
 
 load_dotenv()
 
@@ -22,10 +23,13 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # noqa: D103
-    # Perform Google authentication on startup
+    # Perform Google authentication check on startup
     logger.info("Initializing Google credentials...")
     app.state.google_credentials = await get_google_credentials()
-    logger.info("Google credentials initialized successfully")
+    if app.state.google_credentials:
+        logger.info("Google credentials initialized successfully")
+    else:
+        logger.warning("Google credentials not found or expired. Please visit /auth/login")
     yield
 
 
@@ -90,7 +94,48 @@ async def root():
     """
     Return the API status and version.
     """
-    return {"message": "Bolletta Sync API is running", "version": app.version}
+    authenticated = app.state.google_credentials is not None
+    return {"message": "Bolletta Sync API is running", "version": app.version, "authenticated": authenticated}
+
+
+@app.get("/auth/login")
+async def auth_login(request: Request):
+    """
+    Initializes the Google OAuth2 flow and redirects to Google's authorization page.
+    """
+    redirect_uri = str(request.url_for("auth_callback"))
+    print(redirect_uri)
+    # In some proxy environments, url_for might return http instead of https
+    if not DEV_MODE and redirect_uri.startswith("http://"):
+        redirect_uri = redirect_uri.replace("http://", "https://", 1)
+
+    flow = get_google_flow(redirect_uri)
+    authorization_url, state = flow.authorization_url(
+        access_type="offline", include_granted_scopes="true", prompt="consent"
+    )
+    return RedirectResponse(authorization_url)
+
+
+@app.get("/auth/callback")
+async def auth_callback(request: Request, code: str):
+    """
+    Callback for Google OAuth2. Exchanges the code for tokens.
+    """
+    redirect_uri = str(request.url_for("auth_callback"))
+    if not DEV_MODE and redirect_uri.startswith("http://"):
+        redirect_uri = redirect_uri.replace("http://", "https://", 1)
+
+    flow = get_google_flow(redirect_uri)
+    flow.fetch_token(code=code)
+
+    credentials = flow.credentials
+    with open(google_token_file, "w") as token:
+        token.write(credentials.to_json())
+
+    app.state.google_credentials = credentials
+    logger.info("Google credentials successfully obtained and saved")
+
+    return {"message": "Authentication successful! You can now use the /sync endpoint."}
 
 
 @app.get("/providers")
@@ -109,7 +154,10 @@ async def trigger_sync(request: SyncRequest):
     # Get credentials from app state
     google_credentials = app.state.google_credentials
 
-    # Run the main sync process synchronously
+    if not google_credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated with Google. Please visit /auth/login")
+
+    # Run the main sync process
     await Sync(
         google_credentials=google_credentials,
         providers=request.providers,
