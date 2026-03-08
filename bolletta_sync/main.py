@@ -29,7 +29,7 @@ async def scheduled_sync(app: FastAPI):
     Run the sync process for all providers.
     """
     logger.info("Starting scheduled sync...")
-    google_credentials = getattr(app.state, "google_credentials", None)
+    google_credentials = app.state.google_credentials
 
     if not google_credentials:
         logger.error("Scheduled sync failed: Not authenticated with Google")
