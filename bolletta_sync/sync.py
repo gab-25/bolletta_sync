@@ -85,7 +85,7 @@ class Sync:
         self._providers = providers
         self._date_range = date_range
 
-    async def _exec_sync(self, provider: Provider, browser: Browser):
+    async def _exec_sync(self, provider: Provider, browser: Browser) -> List:
         logger.info(f"{provider.value} - Syncing invoices from {self._date_range[0]} to {self._date_range[1]}")
 
         page = await browser.new_page(locale="en-EN")
@@ -112,18 +112,29 @@ class Sync:
                 doc = await instance.download_invoice(invoice)
                 await instance.save_invoice(invoice, doc)
                 await instance.set_expire_invoice(invoice)
+
+            logger.info(f"{provider.value} - Invoices synced successfully")
+            return invoices
         except Exception as e:
             logger.error(f"{provider.value} - Error while syncing cause: {e}")
             raise e
+        finally:
+            await page.close()
 
-        logger.info(f"{provider.value} - Invoices synced successfully")
-
-    async def run(self, headless: bool = True):
-        """Run syncs invoices for the given providers using the provided Google credentials."""
+    async def run(self, headless: bool = True) -> dict:
+        """Run syncs invoices for the given providers and returns a summary of the results."""
+        results = {}
 
         async with async_playwright() as playwright:
             browser = await playwright.chromium.launch(headless=headless)
-            tasks = []
+
             for provider in self._providers:
-                tasks.append(self._exec_sync(provider, browser))
-            await asyncio.gather(*tasks)
+                try:
+                    invoices = await self._exec_sync(provider, browser)
+                    results[provider.value] = {"status": "success", "count": len(invoices), "invoices": invoices}
+                except Exception as e:
+                    results[provider.value] = {"status": "error", "error": str(e)}
+
+            await browser.close()
+
+        return results

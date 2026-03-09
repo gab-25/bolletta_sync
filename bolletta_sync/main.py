@@ -3,7 +3,7 @@ import os
 import importlib.metadata
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
-from typing import List
+from typing import Any, Dict, List
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import RedirectResponse
@@ -87,6 +87,7 @@ class SyncResponse(BaseModel):
 
     message: str
     status: str
+    results: Dict[str, Any]
 
 
 @app.get("/")
@@ -164,7 +165,7 @@ async def trigger_sync(request: SyncRequest):
         raise HTTPException(status_code=401, detail="Not authenticated with Google. Please visit /auth/login")
 
     # Run the main sync process
-    await Sync(
+    results = await Sync(
         google_credentials=google_credentials,
         providers=request.providers,
         date_range=(request.start_date, request.end_date),
@@ -173,4 +174,5 @@ async def trigger_sync(request: SyncRequest):
     return SyncResponse(
         message=f"Sync completed for {len(request.providers)} providers from {request.start_date} to {request.end_date}",
         status="success",
+        results=results,
     )
