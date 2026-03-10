@@ -5,7 +5,8 @@ from contextlib import asynccontextmanager
 from datetime import date, timedelta
 from typing import Any, Dict, List
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Security, Depends
+from fastapi.security.api_key import APIKeyHeader
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field, model_validator
 from dotenv import load_dotenv
@@ -15,6 +16,23 @@ from bolletta_sync.sync import Provider, Sync, get_google_credentials, get_googl
 load_dotenv()
 
 DEV_MODE = os.getenv("DEV_MODE") == "true"
+API_KEY = os.getenv("API_KEY")
+API_KEY_NAME = "X-API-Key"
+api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+
+
+async def get_api_key(api_key_header: str = Security(api_key_header)):
+    """Validate the API key from the header."""
+    if not API_KEY:
+        # If API_KEY is not set in environment, security is disabled
+        return api_key_header
+    if api_key_header == API_KEY:
+        return api_key_header
+    raise HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+    )
+
 
 # Logging Configuration
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] - %(message)s")
@@ -30,6 +48,10 @@ async def lifespan(app: FastAPI):  # noqa: D103
         logger.info("Google credentials initialized successfully")
     else:
         logger.warning("Google credentials not found or expired. Please visit /auth/login")
+
+    if not API_KEY:
+        logger.warning("API_KEY not set in environment variables. Security is disabled.")
+
     yield
 
 
@@ -145,7 +167,7 @@ async def auth_callback(request: Request, code: str):
     return {"message": "Authentication successful! You can now use the /sync endpoint."}
 
 
-@app.get("/providers")
+@app.get("/providers", dependencies=[Depends(get_api_key)])
 async def get_providers():
     """
     Return the list of available providers.
@@ -153,7 +175,7 @@ async def get_providers():
     return {"providers": [p.value for p in Provider]}
 
 
-@app.post("/sync", response_model=SyncResponse)
+@app.post("/sync", response_model=SyncResponse, dependencies=[Depends(get_api_key)])
 async def trigger_sync(request: SyncRequest):
     """
     Triggers the synchronization process and waits for it to finish.

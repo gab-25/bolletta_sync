@@ -65,6 +65,9 @@ UMBRA_ACQUE_PASSWORD=your_password
 
 # App Mode
 DEV_MODE=false
+
+# Security (Optional)
+API_KEY=your_secret_api_key
 ```
 
 ### Google OAuth2 Setup
@@ -97,6 +100,8 @@ Before running a sync, you must authorize the application:
 3. Once authorized, a `google_token.json` file will be created in the project root for future sessions.
 
 ### API Endpoints
+
+If the `API_KEY` environment variable is set, the `/providers` and `/sync` endpoints require the `X-API-Key` header.
 
 - **GET `/`**: Check API status, version, and authentication state.
 - **GET `/auth/login`**: Start the Google OAuth2 flow.
