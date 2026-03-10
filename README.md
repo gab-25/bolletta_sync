@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" width="200">
+</p>
+
 # Bolletta Sync
 
 Bolletta Sync is a Python-based web service designed to automate the synchronization of utility invoices from various Italian providers to Google Drive and Google Tasks. It uses Playwright for web scraping and the Google API for cloud integration.
