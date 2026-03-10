@@ -17,7 +17,7 @@ class Eni(BaseProvider):
         await self.page.goto("https://eniplenitude.com/my-eni/")
 
         async with recaptchav2.AsyncSolver(self.page, capsolver_api_key=os.getenv("CAPSOLVER_API_KEY")) as solver:
-            await self.page.get_by_role("listitem", name="Accept proposed privacy").click()
+            await self.page.get_by_role("button", name="Accept proposed privacy").click()
             await self.page.get_by_role("textbox", name="email").fill(os.getenv("ENI_USERNAME"))  # pyright: ignore[reportArgumentType]
             await solver.solve_recaptcha(wait=True, image_challenge=True)
             await self.page.get_by_role("button", name="Prosegui", exact=True).click()
