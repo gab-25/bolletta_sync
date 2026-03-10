@@ -106,17 +106,18 @@ If the `API_KEY` environment variable is set, the `/providers` and `/sync` endpo
 - **GET `/`**: Check API status, version, and authentication state.
 - **GET `/auth/login`**: Start the Google OAuth2 flow.
 - **GET `/providers`**: List supported providers.
-- **POST `/sync`**: Trigger a synchronization process.
+- **POST `/sync`**: Trigger a synchronization process in the background. Returns a 200 status code once the process has been taken over by the server.
   
   **Request Body Example**:
   ```json
   {
     "providers": ["fastweb", "eni"],
     "start_date": "2025-01-01",
-    "end_date": "2025-02-01"
+    "end_date": "2025-02-01",
+    "webhook_url": "https://example.com/webhook"
   }
   ```
-  *If `providers` is omitted, all providers will be synced. `start_date` defaults to 10 days ago, and `end_date` defaults to today.*
+  *If `providers` is omitted, all providers will be synced. `start_date` defaults to 10 days ago, and `end_date` defaults to today. `webhook_url` is optional and will be notified when the process finishes.*
 
 ## Project Structure
 
