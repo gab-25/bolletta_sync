@@ -190,7 +190,7 @@ async def run_sync_task(
 ):
     """Background task to run the sync process."""
     results = None
-    status = "success"
+    status = None
     error_message = None
 
     try:
@@ -199,6 +199,8 @@ async def run_sync_task(
             providers=providers,
             date_range=(start_date, end_date),
         ).run(headless=not DEV_MODE)
+        status = "success" if all(item["status"] == "success" for item in results.values()) else "error"
+        print(status)
         logger.info(f"Background sync completed for {len(providers)} providers")
     except Exception as e:
         status = "error"

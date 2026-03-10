@@ -3,13 +3,14 @@ import logging
 import os
 from datetime import date
 from enum import Enum
-from typing import List, Tuple, Optional
+from typing import Any, Dict, List, Tuple, Optional
 
 from google.auth.transport.requests import Request as AuthRequest
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from playwright.async_api import async_playwright, Browser
 
+from bolletta_sync.providers.base_provider import Invoice
 from bolletta_sync.providers.eni import Eni
 from bolletta_sync.providers.fastweb import Fastweb
 from bolletta_sync.providers.fastweb_energia import FastwebEnergia
@@ -85,7 +86,7 @@ class Sync:
         self._providers = providers
         self._date_range = date_range
 
-    async def _exec_sync(self, provider: Provider, browser: Browser) -> List:
+    async def _exec_sync(self, provider: Provider, browser: Browser) -> List[Invoice]:
         logger.info(f"{provider.value} - Syncing invoices from {self._date_range[0]} to {self._date_range[1]}")
 
         page = await browser.new_page(locale="en-EN")
@@ -121,7 +122,7 @@ class Sync:
         finally:
             await page.close()
 
-    async def run(self, headless: bool = True) -> dict:
+    async def run(self, headless: bool = True) -> Dict[str, Any]:
         """Run syncs invoices for the given providers and returns a summary of the results."""
         results = {}
 
