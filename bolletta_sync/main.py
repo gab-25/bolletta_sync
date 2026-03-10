@@ -9,6 +9,7 @@ from typing import Any, List, Optional
 from fastapi import FastAPI, Request, HTTPException, Security, Depends, BackgroundTasks
 from fastapi.security.api_key import APIKeyHeader
 from fastapi.responses import RedirectResponse
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field, model_validator
 from dotenv import load_dotenv
 
@@ -117,7 +118,7 @@ class SyncResponse(BaseModel):
     status: str
 
 
-@app.get("/")
+@app.get("/", dependencies=[Depends(get_api_key)])
 async def root():
     """
     Return the API status and version.
@@ -218,7 +219,7 @@ async def run_sync_task(
                 if error_message:
                     payload["error"] = error_message
 
-                await client.post(webhook_url, json=payload)
+                await client.post(webhook_url, json=jsonable_encoder(payload))
                 logger.info(f"Webhook notification sent to {webhook_url}")
         except Exception as e:
             logger.error(f"Failed to send webhook notification: {e}")
