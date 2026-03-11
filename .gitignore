@@ -215,5 +215,4 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-google_credentials.json
-google_token.json
+data/

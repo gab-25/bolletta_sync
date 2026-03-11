@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.png" width="200">
+  <img src="logo.png" width="300">
 </p>
 
 # Bolletta Sync
@@ -16,12 +16,13 @@ Bolletta Sync is a Python-based web service designed to automate the synchroniza
 - **Google Drive Integration**: Automatically uploads invoice PDFs to Google Drive, organized by year and provider (e.g., `bollette/2025/fastweb/...`).
 - **Google Tasks Integration**: Creates tasks for invoice payment deadlines with the due date and amount.
 - **REST API**: Simple FastAPI interface to trigger synchronization and check status.
+- **Automated Scheduling**: Automatically runs the sync process based on a configurable schedule (requires the application to be running and authenticated).
 
 ## Prerequisites
 
 - **Python 3.13** or higher.
 - **Google Cloud Project**: You need a project with the Google Drive API and Google Tasks API enabled.
-- **Google Credentials**: A `google_credentials.json` file (**Web application type**) placed in the project root.
+- **Google Credentials**: A `google_credentials.json` file (**Web application type**) placed in the `data/` folder.
 - **CAPSolver API Key**: Required for solving ReCaptcha on the Eni Plenitude portal.
 
 ## Installation
@@ -72,6 +73,10 @@ DEV_MODE=false
 
 # Security (Optional)
 API_KEY=your_secret_api_key
+
+# Schedule (Optional)
+SYNC_SCHEDULE="0 0 * * *"  # Crontab expression for automated sync
+SYNC_DAYS_OFFSET=10        # Optional: Number of days to look back (default: 10)
 ```
 
 ### Google OAuth2 Setup
@@ -81,7 +86,7 @@ API_KEY=your_secret_api_key
 3. Add the following to **Authorized redirect URIs**:
    - `http://localhost:8000/auth/callback` (for local development)
    - `https://your-domain.com/auth/callback` (for production)
-4. Download the JSON file and rename it to `google_credentials.json` in the project root.
+4. Download the JSON file and rename it to `google_credentials.json` in the `data/` folder.
 
 ## Usage
 
@@ -101,7 +106,13 @@ Before running a sync, you must authorize the application:
 
 1. Visit `http://localhost:8000/auth/login`.
 2. Complete the Google login process.
-3. Once authorized, a `google_token.json` file will be created in the project root for future sessions.
+3. Once authorized, a `google_token.json` file will be created in the `data/` folder for future sessions.
+
+### Automated Scheduling
+
+The application includes a built-in scheduler. Once the server is started and you have completed the [Authentication Flow](#authentication-flow), the synchronization process will automatically run according to the schedule defined in the `.env` file (variable `SYNC_SCHEDULE`).
+
+It will attempt to sync all providers for the last `SYNC_DAYS_OFFSET` days (defaults to 10). Logs will indicate the progress of these scheduled tasks.
 
 ### API Endpoints
 
@@ -121,7 +132,7 @@ If the `API_KEY` environment variable is set, the `/providers` and `/sync` endpo
     "webhook_url": "https://example.com/webhook"
   }
   ```
-  *If `providers` is omitted, all providers will be synced. `start_date` defaults to 10 days ago, and `end_date` defaults to today. `webhook_url` is optional and will be notified when the process finishes.*
+  *If `providers` is omitted, all providers will be synced. `start_date` defaults to `SYNC_DAYS_OFFSET` days ago (default 10), and `end_date` defaults to today. `webhook_url` is optional and will be notified when the process finishes.*
 
 ## Project Structure
 
@@ -129,3 +140,4 @@ If the `API_KEY` environment variable is set, the `/providers` and `/sync` endpo
 - `bolletta_sync/sync.py`: Main logic for orchestration and Google credential management.
 - `bolletta_sync/providers/`: contains individual scrapers for each utility provider.
   - `base_provider.py`: Abstract class with shared Google Drive/Tasks logic.
+- `data/`: contains Google credentials and token files.

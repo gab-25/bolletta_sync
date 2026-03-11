@@ -13,14 +13,29 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field, model_validator
 from dotenv import load_dotenv
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from bolletta_sync.sync import Provider, Sync, get_google_credentials, get_google_flow, google_token_file
 
 load_dotenv()
 
 DEV_MODE = os.getenv("DEV_MODE") == "true"
+
+# Logging Configuration
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] - %(message)s")
+logger = logging.getLogger(__name__)
+
 API_KEY = os.getenv("API_KEY")
 API_KEY_NAME = "X-API-Key"
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+
+SYNC_SCHEDULE = os.getenv("SYNC_SCHEDULE")
+
+try:
+    SYNC_DAYS_OFFSET = int(os.getenv("SYNC_DAYS_OFFSET", "10"))
+except ValueError:
+    logger.warning("Invalid SYNC_DAYS_OFFSET environment variable. Defaulting to 10 days.")
+    SYNC_DAYS_OFFSET = 10
 
 
 async def get_api_key(api_key_header: str = Security(api_key_header)):
@@ -36,9 +51,30 @@ async def get_api_key(api_key_header: str = Security(api_key_header)):
     )
 
 
-# Logging Configuration
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] - %(message)s")
-logger = logging.getLogger(__name__)
+async def scheduled_sync(app: FastAPI):
+    """
+    Run the sync process for all providers.
+    """
+    logger.info("Starting scheduled sync...")
+    google_credentials = app.state.google_credentials
+
+    if not google_credentials:
+        logger.error("Scheduled sync failed: Not authenticated with Google")
+        return
+
+    # Use today - SYNC_DAYS_OFFSET as default range
+    start_date = date.today() - timedelta(days=SYNC_DAYS_OFFSET)
+    end_date = date.today()
+
+    try:
+        await Sync(
+            google_credentials=google_credentials,
+            providers=list(Provider),
+            date_range=(start_date, end_date),
+        ).run(headless=not DEV_MODE)
+        logger.info("Scheduled sync completed successfully")
+    except Exception as e:
+        logger.error(f"Scheduled sync failed: {e}")
 
 
 @asynccontextmanager
@@ -54,7 +90,29 @@ async def lifespan(app: FastAPI):  # noqa: D103
     if not API_KEY:
         logger.warning("API_KEY not set in environment variables. Security is disabled.")
 
+    # Setup Scheduler
+    scheduler = None
+    if SYNC_SCHEDULE:
+        scheduler = AsyncIOScheduler()
+        trigger = CronTrigger.from_crontab(SYNC_SCHEDULE)
+        scheduler.add_job(
+            scheduled_sync,
+            trigger,
+            args=[app],
+            id="job_sync",
+            name=f"Job sync (schedule: {SYNC_SCHEDULE})",
+            replace_existing=True,
+        )
+        scheduler.start()
+        logger.info(f"Scheduler started with schedule: {SYNC_SCHEDULE}")
+    else:
+        logger.warning("SYNC_SCHEDULE not set in environment variables. Scheduler not started.")
+
     yield
+
+    if scheduler:
+        scheduler.shutdown()
+        logger.info("Scheduler shut down")
 
 
 try:
@@ -78,8 +136,8 @@ class SyncRequest(BaseModel):
         description="List of providers to sync. Defaults to all providers.",
     )
     start_date: date = Field(
-        default_factory=lambda: date.today() - timedelta(days=10),
-        description="Start date for syncing (YYYY-MM-DD). Defaults to 10 days ago.",
+        default_factory=lambda: date.today() - timedelta(days=SYNC_DAYS_OFFSET),
+        description=f"Start date for syncing (YYYY-MM-DD). Defaults to {SYNC_DAYS_OFFSET} days ago.",
     )
     end_date: date = Field(
         default_factory=date.today,
@@ -95,7 +153,7 @@ class SyncRequest(BaseModel):
             "examples": [
                 {
                     "providers": [p.value for p in Provider],
-                    "start_date": (date.today() - timedelta(days=10)).isoformat(),
+                    "start_date": (date.today() - timedelta(days=SYNC_DAYS_OFFSET)).isoformat(),
                     "end_date": date.today().isoformat(),
                     "webhook_url": "https://example.com/webhook",
                 }
