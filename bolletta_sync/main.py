@@ -91,6 +91,7 @@ async def lifespan(app: FastAPI):  # noqa: D103
         logger.warning("API_KEY not set in environment variables. Security is disabled.")
 
     # Setup Scheduler
+    scheduler = None
     if SYNC_SCHEDULE:
         scheduler = AsyncIOScheduler()
         trigger = CronTrigger.from_crontab(SYNC_SCHEDULE)
@@ -104,11 +105,14 @@ async def lifespan(app: FastAPI):  # noqa: D103
         )
         scheduler.start()
         logger.info(f"Scheduler started with schedule: {SYNC_SCHEDULE}")
-        yield
-        scheduler.shutdown()
-        logger.info("Scheduler shut down")
     else:
         logger.warning("SYNC_SCHEDULE not set in environment variables. Scheduler not started.")
+
+    yield
+
+    if scheduler:
+        scheduler.shutdown()
+        logger.info("Scheduler shut down")
 
 
 try:
