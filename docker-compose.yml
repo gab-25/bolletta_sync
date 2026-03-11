@@ -9,4 +9,4 @@ services:
     env_file:
       - .env
     volumes:
-      - ./google_credentials.json:/app/google_credentials.json
+      - ./data:/app/data

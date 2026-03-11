@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 
 # Paths and Scopes
 google_auth_scopes = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/tasks"]
-google_credentials_file = "google_credentials.json"
-google_token_file = "google_token.json"
+google_credentials_file = "./data/google_credentials.json"
+google_token_file = "./data/google_token.json"
 
 
 class Provider(Enum):
