@@ -21,11 +21,21 @@ load_dotenv()
 
 DEV_MODE = os.getenv("DEV_MODE") == "true"
 
+# Logging Configuration
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] - %(message)s")
+logger = logging.getLogger(__name__)
+
 API_KEY = os.getenv("API_KEY")
 API_KEY_NAME = "X-API-Key"
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
 SYNC_SCHEDULE = os.getenv("SYNC_SCHEDULE")
+
+try:
+    SYNC_DAYS_OFFSET = int(os.getenv("SYNC_DAYS_OFFSET", "10"))
+except ValueError:
+    logger.warning("Invalid SYNC_DAYS_OFFSET environment variable. Defaulting to 10 days.")
+    SYNC_DAYS_OFFSET = 10
 
 
 async def get_api_key(api_key_header: str = Security(api_key_header)):
@@ -39,17 +49,6 @@ async def get_api_key(api_key_header: str = Security(api_key_header)):
         status_code=401,
         detail="Could not validate credentials",
     )
-
-
-# Logging Configuration
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] - %(message)s")
-logger = logging.getLogger(__name__)
-
-try:
-    SYNC_DAYS_OFFSET = int(os.getenv("SYNC_DAYS_OFFSET", "10"))
-except ValueError:
-    logger.warning("Invalid SYNC_DAYS_OFFSET environment variable. Defaulting to 10 days.")
-    SYNC_DAYS_OFFSET = 10
 
 
 async def scheduled_sync(app: FastAPI):
