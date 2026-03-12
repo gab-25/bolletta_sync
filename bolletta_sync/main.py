@@ -1,15 +1,13 @@
 import logging
 import os
-import httpx
 import importlib.metadata
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
-from typing import Any, List, Optional
+from typing import Any, List
 
 from fastapi import FastAPI, Request, HTTPException, Security, Depends, BackgroundTasks
 from fastapi.security.api_key import APIKeyHeader
 from fastapi.responses import RedirectResponse
-from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field, model_validator
 from dotenv import load_dotenv
 
@@ -143,10 +141,6 @@ class SyncRequest(BaseModel):
         default_factory=date.today,
         description="End date for syncing (YYYY-MM-DD). Defaults to today.",
     )
-    webhook_url: Optional[str] = Field(
-        default=None,
-        description="Optional webhook URL to notify when sync completes.",
-    )
 
     model_config = {
         "json_schema_extra": {
@@ -155,7 +149,6 @@ class SyncRequest(BaseModel):
                     "providers": [p.value for p in Provider],
                     "start_date": (date.today() - timedelta(days=SYNC_DAYS_OFFSET)).isoformat(),
                     "end_date": date.today().isoformat(),
-                    "webhook_url": "https://example.com/webhook",
                 }
             ]
         }
@@ -244,45 +237,17 @@ async def run_sync_task(
     providers: List[Provider],
     start_date: date,
     end_date: date,
-    webhook_url: Optional[str] = None,
 ):
     """Background task to run the sync process."""
-    results = None
-    status = None
-    error_message = None
-
     try:
-        results = await Sync(
+        await Sync(
             google_credentials=google_credentials,
             providers=providers,
             date_range=(start_date, end_date),
         ).run(headless=not DEV_MODE)
-        status = "success" if all(item["status"] == "success" for item in results.values()) else "error"
-        print(status)
         logger.info(f"Background sync completed for {len(providers)} providers")
     except Exception as e:
-        status = "error"
-        error_message = str(e)
         logger.error(f"Background sync failed: {e}")
-
-    if webhook_url:
-        try:
-            async with httpx.AsyncClient() as client:
-                payload = {
-                    "status": status,
-                    "providers": [p.value for p in providers],
-                    "start_date": start_date.isoformat(),
-                    "end_date": end_date.isoformat(),
-                }
-                if results:
-                    payload["results"] = results
-                if error_message:
-                    payload["error"] = error_message
-
-                await client.post(webhook_url, json=jsonable_encoder(payload))
-                logger.info(f"Webhook notification sent to {webhook_url}")
-        except Exception as e:
-            logger.error(f"Failed to send webhook notification: {e}")
 
 
 @app.post("/sync", response_model=SyncResponse, dependencies=[Depends(get_api_key)])
@@ -303,7 +268,6 @@ async def trigger_sync(request: SyncRequest, background_tasks: BackgroundTasks):
         request.providers,
         request.start_date,
         request.end_date,
-        request.webhook_url,
     )
 
     return SyncResponse(

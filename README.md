@@ -128,11 +128,10 @@ If the `API_KEY` environment variable is set, the `/providers` and `/sync` endpo
   {
     "providers": ["fastweb", "eni"],
     "start_date": "2025-01-01",
-    "end_date": "2025-02-01",
-    "webhook_url": "https://example.com/webhook"
+    "end_date": "2025-02-01"
   }
   ```
-  *If `providers` is omitted, all providers will be synced. `start_date` defaults to `SYNC_DAYS_OFFSET` days ago (default 10), and `end_date` defaults to today. `webhook_url` is optional and will be notified when the process finishes.*
+  *If `providers` is omitted, all providers will be synced. `start_date` defaults to `SYNC_DAYS_OFFSET` days ago (default 10), and `end_date` defaults to today.*
 
 ## Project Structure
 
