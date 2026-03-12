@@ -17,6 +17,7 @@ Bolletta Sync is a Python-based web service designed to automate the synchroniza
 - **Google Tasks Integration**: Creates tasks for invoice payment deadlines with the due date and amount.
 - **REST API**: Simple FastAPI interface to trigger synchronization and check status.
 - **Automated Scheduling**: Automatically runs the sync process based on a configurable schedule (requires the application to be running and authenticated).
+- **Sync Persistence**: Saves the result of every synchronization (manual or scheduled) to `data/last_sync.json` for easy auditing and status tracking.
 
 ## Prerequisites
 
@@ -118,7 +119,7 @@ It will attempt to sync all providers for the last `SYNC_DAYS_OFFSET` days (defa
 
 If the `API_KEY` environment variable is set, the `/providers` and `/sync` endpoints require the `X-API-Key` header.
 
-- **GET `/`**: Check API status, version, and authentication state.
+- **GET `/`**: Check API status, version, authentication state, and the details of the last synchronization.
 - **GET `/auth/login`**: Start the Google OAuth2 flow.
 - **GET `/providers`**: List supported providers.
 - **POST `/sync`**: Trigger a synchronization process in the background. Returns a 200 status code once the process has been taken over by the server.
@@ -128,11 +129,10 @@ If the `API_KEY` environment variable is set, the `/providers` and `/sync` endpo
   {
     "providers": ["fastweb", "eni"],
     "start_date": "2025-01-01",
-    "end_date": "2025-02-01",
-    "webhook_url": "https://example.com/webhook"
+    "end_date": "2025-02-01"
   }
   ```
-  *If `providers` is omitted, all providers will be synced. `start_date` defaults to `SYNC_DAYS_OFFSET` days ago (default 10), and `end_date` defaults to today. `webhook_url` is optional and will be notified when the process finishes.*
+  *If `providers` is omitted, all providers will be synced. `start_date` defaults to `SYNC_DAYS_OFFSET` days ago (default 10), and `end_date` defaults to today.*
 
 ## Project Structure
 
@@ -140,4 +140,4 @@ If the `API_KEY` environment variable is set, the `/providers` and `/sync` endpo
 - `bolletta_sync/sync.py`: Main logic for orchestration and Google credential management.
 - `bolletta_sync/providers/`: contains individual scrapers for each utility provider.
   - `base_provider.py`: Abstract class with shared Google Drive/Tasks logic.
-- `data/`: contains Google credentials and token files.
+- `data/`: contains Google credentials, token files, and the `last_sync.json` report.

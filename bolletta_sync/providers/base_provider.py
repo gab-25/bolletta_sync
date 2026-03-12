@@ -113,7 +113,11 @@ class BaseProvider(ABC):
         set expire invoice to google tasks
         """
         task_title = f"Pagare {self._namespace} fattura {invoice.id}"
-        tasks = self.tasks_service.tasks().list(tasklist=self.namespace_tasklist_id).execute()
+        tasks = (
+            self.tasks_service.tasks()
+            .list(tasklist=self.namespace_tasklist_id, showCompleted=True, showHidden=True)
+            .execute()
+        )
         for task in tasks.get("items", []):
             if task["title"] == task_title:
                 self.logger.info(f"task for invoice {invoice.id} already exists")
