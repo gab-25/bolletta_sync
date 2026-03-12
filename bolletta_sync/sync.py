@@ -1,7 +1,8 @@
 import asyncio
+import json
 import logging
 import os
-from datetime import date
+from datetime import date, datetime
 from enum import Enum
 from typing import Any, Dict, List, Tuple, Optional
 
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 google_auth_scopes = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/tasks"]
 google_credentials_file = "./data/google_credentials.json"
 google_token_file = "./data/google_token.json"
+last_sync_file = "./data/last_sync.json"
 
 
 class Provider(Enum):
@@ -132,10 +134,36 @@ class Sync:
             for provider in self._providers:
                 try:
                     invoices = await self._exec_sync(provider, browser)
-                    results[provider.value] = {"status": "success", "count": len(invoices), "invoices": invoices}
+                    results[provider.value] = {
+                        "status": "success",
+                        "count": len(invoices),
+                        "invoices": [invoice.model_dump(mode="json") for invoice in invoices],
+                    }
                 except Exception as e:
                     results[provider.value] = {"status": "error", "error": str(e)}
 
             await browser.close()
+
+        # Persist result to data folder
+        try:
+            # Overall status is success only if all individual results are success
+            overall_status = "success"
+            if not results:
+                overall_status = "empty"
+            elif any(res.get("status") == "error" for res in results.values()):
+                overall_status = "error"
+
+            with open(last_sync_file, "w") as f:
+                json.dump(
+                    {
+                        "date": datetime.now().isoformat(),
+                        "status": overall_status,
+                        "results": results,
+                    },
+                    f,
+                    indent=4,
+                )
+        except Exception as e:
+            logger.error(f"Failed to save last sync result: {e}")
 
         return results

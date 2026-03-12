@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import importlib.metadata
@@ -13,7 +14,14 @@ from dotenv import load_dotenv
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from bolletta_sync.sync import Provider, Sync, get_google_credentials, get_google_flow, google_token_file
+from bolletta_sync.sync import (
+    Provider,
+    Sync,
+    get_google_credentials,
+    get_google_flow,
+    google_token_file,
+    last_sync_file,
+)
 
 load_dotenv()
 
@@ -175,7 +183,21 @@ async def root():
     Return the API status and version.
     """
     authenticated = app.state.google_credentials is not None
-    return {"message": "Bolletta Sync API is running", "version": app.version, "authenticated": authenticated}
+
+    last_sync = None
+    if os.path.exists(last_sync_file):
+        try:
+            with open(last_sync_file, "r") as f:
+                last_sync = json.load(f)
+        except Exception as e:
+            logger.error(f"Failed to read last sync file: {e}")
+
+    return {
+        "message": "Bolletta Sync API is running",
+        "version": app.version,
+        "authenticated": authenticated,
+        "last_sync": last_sync,
+    }
 
 
 @app.get("/auth/login")
