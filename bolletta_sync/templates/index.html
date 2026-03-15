@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bolletta Sync Dashboard</title>
+    <script src="https://unpkg.com/htmx.org@2.0.0"></script>
+    <script src="https://unpkg.com/htmx-ext-json-enc@2.0.0"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    {% if security_enabled %}
+    <script>
+      (function () {
+        const password = localStorage.getItem("api_key");
+        if (!password) {
+          const input = prompt("Inserisci la API Key per accedere:");
+          if (input) {
+            localStorage.setItem("api_key", input);
+          } else {
+            document.documentElement.innerHTML =
+              '<body class="bg-gray-100 flex items-center justify-center min-h-screen text-red-600 font-bold text-xl">Accesso Negato: API Key richiesta.</body>';
+          }
+        }
+
+        // Global HTMX listeners for reliable header injection
+        document.addEventListener("htmx:configRequest", (event) => {
+          const key = localStorage.getItem("api_key");
+          if (key) {
+            event.detail.headers["X-API-Key"] = key;
+          }
+        });
+
+        document.addEventListener("htmx:responseError", (event) => {
+          if (event.detail.xhr.status === 401) {
+            localStorage.removeItem("api_key");
+            alert("API Key non valida o scaduta.");
+            location.reload();
+          }
+        });
+      })();
+    </script>
+    {% endif %}
+    <style>
+      .htmx-indicator {
+        display: none;
+      }
+      .htmx-request .htmx-indicator {
+        display: inline-block;
+      }
+      .htmx-request.htmx-indicator {
+        display: inline-block;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100 min-h-screen font-sans">
+    <nav class="bg-blue-600 p-4 text-white shadow-lg">
+      <div class="container mx-auto flex justify-between items-center">
+        <div class="flex items-center space-x-3">
+          <img
+            src="/static/logo.png"
+            alt="Logo"
+            class="h-10 w-10 rounded-lg shadow-md bg-white border border-blue-400"
+          />
+          <h1 class="text-2xl font-bold">Bolletta Sync</h1>
+        </div>
+        <div id="status-badge">
+          <!-- Status will be loaded here -->
+        </div>
+      </div>
+    </nav>
+
+    <main class="container mx-auto mt-8 px-4 max-w-4xl">
+      <!-- Status Column -->
+      <div
+        class="bg-white rounded-lg shadow-md p-6"
+        hx-get="/"
+        hx-trigger="load"
+        hx-swap="innerHTML"
+      >
+        <div class="flex items-center justify-center p-4">
+          <div
+            class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"
+          ></div>
+          <span class="ml-2 text-gray-600"
+            >Caricamento stato e sincronizzazioni...</span
+          >
+        </div>
+      </div>
+    </main>
+
+    <footer
+      class="container mx-auto mt-12 pb-8 text-center text-gray-500 text-sm"
+    >
+      <div class="mb-2">Bolletta Sync</div>
+      {% if security_enabled %}
+      <button
+        onclick="
+          localStorage.removeItem('api_key');
+          location.reload();
+        "
+        class="text-xs text-blue-500 hover:underline"
+      >
+        Esci / Cambia Key
+      </button>
+      {% endif %}
+    </footer>
+  </body>
+</html>

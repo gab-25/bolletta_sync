@@ -9,6 +9,8 @@ from typing import Any, List
 from fastapi import FastAPI, Request, HTTPException, Security, Depends, BackgroundTasks
 from fastapi.security.api_key import APIKeyHeader
 from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, model_validator
 from dotenv import load_dotenv
 
@@ -44,8 +46,12 @@ except ValueError:
     SYNC_DAYS_OFFSET = 10
 
 
-async def get_api_key(api_key_header: str = Security(api_key_header)):
+async def get_api_key(request: Request, api_key_header: str = Security(api_key_header)):
     """Validate the API key from the header."""
+    # Allow initial browser requests for the UI to show the password prompt
+    if "text/html" in request.headers.get("accept", "") and "hx-request" not in request.headers:
+        return api_key_header
+
     if not API_KEY:
         # If API_KEY is not set in environment, security is disabled
         return api_key_header
@@ -133,6 +139,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
+
 
 class SyncRequest(BaseModel):
     """Sync request model."""
@@ -178,7 +188,7 @@ class SyncResponse(BaseModel):
 
 
 @app.get("/", dependencies=[Depends(get_api_key)])
-async def root():
+async def root(request: Request):
     """
     Return the API status and version.
     """
@@ -191,6 +201,29 @@ async def root():
                 last_sync = json.load(f)
         except Exception as e:
             logger.error(f"Failed to read last sync file: {e}")
+
+    # Handle HTML requests for the UI
+    accept = request.headers.get("accept", "")
+    security_enabled = bool(API_KEY)
+
+    if "text/html" in accept and "hx-request" not in request.headers:
+        return templates.TemplateResponse(
+            "index.html",
+            {"request": request, "version": app.version, "security_enabled": security_enabled},
+        )
+
+    # Handle HTMX fragment requests
+    if "hx-request" in request.headers:
+        return templates.TemplateResponse(
+            "status_fragment.html",
+            {
+                "request": request,
+                "authenticated": authenticated,
+                "last_sync": last_sync,
+                "version": app.version,
+                "security_enabled": security_enabled,
+            },
+        )
 
     return {
         "message": "Bolletta Sync API is running",

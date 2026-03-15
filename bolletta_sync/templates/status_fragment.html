@@ -1,0 +1,197 @@
+<div class="flex flex-col space-y-6">
+  <!-- Header Status Section -->
+  <div class="flex flex-wrap items-center justify-between gap-4 border-b pb-4">
+    <div class="flex items-center space-x-3">
+      <div class="relative flex h-3 w-3">
+        <span
+          class="animate-ping absolute inline-flex h-full w-full rounded-full {% if authenticated %}bg-green-400{% else %}bg-red-400{% endif %} opacity-75"
+        ></span>
+        <span
+          class="relative inline-flex rounded-full h-3 w-3 {% if authenticated %}bg-green-500{% else %}bg-red-500{% endif %}"
+        ></span>
+      </div>
+      <div>
+        <p class="text-sm font-semibold text-gray-900">Google Authentication</p>
+        <p
+          class="text-xs {% if authenticated %}text-green-600{% else %}text-red-600{% endif %}"
+        >
+          {% if authenticated %}Sessione Attiva / Collegato{% else %}Azione
+          Richiesta / Disconnesso{% endif %}
+        </p>
+      </div>
+    </div>
+    <div class="text-right">
+      <p class="text-xs text-gray-400 uppercase tracking-wider font-bold">
+        Versione Sistema
+      </p>
+      <p class="text-sm font-mono text-gray-600">{{ version }}</p>
+    </div>
+  </div>
+
+  <!-- Sync Details Section -->
+  <div class="space-y-4">
+    <div class="flex items-center justify-between">
+      <h3 class="text-lg font-bold text-gray-800">Ultima Sincronizzazione</h3>
+      {% if last_sync %}
+      <span
+        class="px-2.5 py-0.5 rounded-full text-xs font-medium {% if last_sync.status == 'success' %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}"
+      >
+        {{ last_sync.status | upper }}
+      </span>
+      {% endif %}
+    </div>
+
+    {% if last_sync %}
+    <div
+      class="grid grid-cols-1 gap-4 bg-gray-50 rounded-xl p-4 border border-gray-100"
+    >
+      <div class="space-y-1">
+        <p class="text-xs text-gray-500 uppercase font-bold">Data Esecuzione</p>
+        <p class="text-sm font-mono text-gray-700">{{ last_sync.date }}</p>
+      </div>
+    </div>
+
+    {% if last_sync.results %}
+    <div class="space-y-3">
+      <p class="text-sm font-bold text-gray-700 flex items-center">
+        <svg
+          class="w-4 h-4 mr-1"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+          ></path>
+        </svg>
+        Dettaglio Provider
+      </p>
+      <div
+        class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg"
+      >
+        <table class="min-w-full divide-y divide-gray-300">
+          <thead class="bg-gray-50">
+            <tr>
+              <th
+                class="py-2 px-3 text-left text-xs font-bold text-gray-500 uppercase"
+              >
+                Provider
+              </th>
+              <th
+                class="py-2 px-3 text-center text-xs font-bold text-gray-500 uppercase"
+              >
+                Bollette
+              </th>
+              <th
+                class="py-2 px-3 text-right text-xs font-bold text-gray-500 uppercase"
+              >
+                Stato
+              </th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200 bg-white">
+            {% for provider, data in last_sync.results.items() %}
+            <tr>
+              <td
+                class="whitespace-nowrap py-3 px-3 text-sm font-medium text-gray-900 capitalize"
+              >
+                {{ provider | replace('_', ' ') }}
+              </td>
+              <td
+                class="whitespace-nowrap py-3 px-3 text-sm text-center text-gray-500"
+              >
+                <span
+                  class="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium"
+                >
+                  {{ data.count }}
+                </span>
+              </td>
+              <td class="whitespace-nowrap py-3 px-3 text-right">
+                <span
+                  class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold {% if data.status == 'success' %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}"
+                >
+                  {% if data.status == 'success' %}OK{% else %}ERRORE{% endif %}
+                </span>
+              </td>
+            </tr>
+            {% if data.invoices %}
+            <tr class="bg-gray-50/50">
+              <td colspan="3" class="px-3 py-2">
+                <div class="text-[10px] text-gray-400 font-bold uppercase mb-1">
+                  Documenti rilevati:
+                </div>
+                <div class="flex flex-wrap gap-1">
+                  {% for inv in data.invoices %}
+                  <span
+                    class="text-[10px] bg-white border border-gray-200 px-1.5 py-0.5 rounded text-gray-600"
+                  >
+                    {{ inv }}
+                  </span>
+                  {% endfor %}
+                </div>
+              </td>
+            </tr>
+            {% endif %} {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Raw Data Fallback (Collapsible) -->
+    <div class="mt-6 pt-4 border-t">
+      <details class="group">
+        <summary
+          class="list-none cursor-pointer flex items-center text-xs text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          <svg
+            class="w-4 h-4 mr-1 group-open:rotate-90 transition-transform"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M9 5l7 7-7 7"
+            ></path>
+          </svg>
+          Mostra dati JSON grezzi
+        </summary>
+        <div
+          class="mt-2 bg-gray-900 rounded-lg p-4 overflow-x-auto text-[10px] leading-relaxed font-mono text-blue-300"
+        >
+          <pre>{{ last_sync | tojson(indent=2) }}</pre>
+        </div>
+      </details>
+    </div>
+
+    {% else %}
+    <div
+      class="flex flex-col items-center justify-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200"
+    >
+      <svg
+        class="w-12 h-12 text-gray-300 mb-3"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+        ></path>
+      </svg>
+      <p class="text-gray-500 font-medium">Nessuna attività registrata</p>
+      <p class="text-xs text-gray-400">
+        I dati appariranno dopo la prima sincronizzazione
+      </p>
+    </div>
+    {% endif %}
+  </div>
+</div>
