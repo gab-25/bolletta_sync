@@ -63,6 +63,16 @@ async def get_google_credentials() -> Optional[Credentials]:
         logger.info("Google token file not found.")
         return None
 
+    if google_credentials:
+        await refresh_google_credentials(google_credentials)
+
+    return google_credentials
+
+
+async def refresh_google_credentials(google_credentials: Credentials):
+    """
+    Refreshes the Google credentials if they are expired.
+    """
     if google_credentials.expired:
         logger.info("Google credentials expired, refreshing")
         try:
@@ -71,9 +81,6 @@ async def get_google_credentials() -> Optional[Credentials]:
                 token.write(google_credentials.to_json())
         except Exception as e:
             logger.error(f"Failed to refresh Google credentials: {e}")
-            return None
-
-    return google_credentials
 
 
 class Sync:
@@ -127,6 +134,8 @@ class Sync:
     async def run(self, headless: bool = True) -> Dict[str, Any]:
         """Run syncs invoices for the given providers and returns a summary of the results."""
         results = {}
+
+        await refresh_google_credentials(self._google_credentials)
 
         async with async_playwright() as playwright:
             browser = await playwright.chromium.launch(headless=headless)
