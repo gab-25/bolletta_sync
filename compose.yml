@@ -3,9 +3,8 @@ version: "3.8"
 services:
   bolletta-sync:
     build: .
-    container_name: bolletta-sync
-    restart: unless-stopped
-    network_mode: host
+    ports:
+      - "8000:8000"
     env_file:
       - .env
     volumes:

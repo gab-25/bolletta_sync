@@ -13,4 +13,4 @@ RUN python -m playwright install --with-deps chromium
 
 COPY ./bolletta_sync ./bolletta_sync
 
-CMD ["fastapi", "run", "/app/bolletta_sync/main.py"]
+CMD ["fastapi", "run"]

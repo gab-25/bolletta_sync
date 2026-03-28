@@ -209,16 +209,17 @@ async def root(request: Request):
 
     if "text/html" in accept and "hx-request" not in request.headers:
         return templates.TemplateResponse(
+            request,
             "index.html",
-            {"request": request, "version": app.version, "security_enabled": security_enabled},
+            {"version": app.version, "security_enabled": security_enabled},
         )
 
     # Handle HTMX fragment requests
     if "hx-request" in request.headers:
         return templates.TemplateResponse(
+            request,
             "status_fragment.html",
             {
-                "request": request,
                 "authenticated": authenticated,
                 "last_sync": last_sync,
                 "version": app.version,
