@@ -66,6 +66,9 @@ async def get_google_credentials() -> Optional[Credentials]:
     if google_credentials:
         await refresh_google_credentials(google_credentials)
 
+    if not google_credentials.valid:
+        return None
+
     return google_credentials
 
 
