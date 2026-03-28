@@ -1,6 +1,6 @@
 [project]
 name = "bolletta-sync"
-version = "0.13.1"
+version = "0.13.2"
 description = ""
 authors = [
     {name = "Gabriele Sorci", email = "gabrielesorci.25@gmail.com"}
@@ -26,3 +26,6 @@ dependencies = [
 dev = [
     "pyinstaller==6.16.0"
 ]
+
+[tool.fastapi]
+entrypoint = "bolletta_sync.main:app"

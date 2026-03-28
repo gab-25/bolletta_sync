@@ -68,7 +68,7 @@ async def scheduled_sync(app: FastAPI):
     Run the sync process for all providers.
     """
     logger.info("Starting scheduled sync...")
-    google_credentials = app.state.google_credentials
+    google_credentials = await get_google_credentials()
 
     if not google_credentials:
         logger.error("Scheduled sync failed: Not authenticated with Google")
@@ -93,8 +93,8 @@ async def scheduled_sync(app: FastAPI):
 async def lifespan(app: FastAPI):  # noqa: D103
     # Perform Google authentication check on startup
     logger.info("Initializing Google credentials...")
-    app.state.google_credentials = await get_google_credentials()
-    if app.state.google_credentials:
+    google_credentials = await get_google_credentials()
+    if google_credentials:
         logger.info("Google credentials initialized successfully")
     else:
         logger.warning("Google credentials not found or expired. Please visit /auth/login")
@@ -192,7 +192,8 @@ async def root(request: Request):
     """
     Return the API status and version.
     """
-    authenticated = app.state.google_credentials is not None
+    google_credentials = await get_google_credentials()
+    authenticated = google_credentials is not None
 
     last_sync = None
     if os.path.exists(last_sync_file):
@@ -273,7 +274,6 @@ async def auth_callback(request: Request, code: str):
     with open(google_token_file, "w") as token:
         token.write(credentials.to_json())
 
-    app.state.google_credentials = credentials
     logger.info("Google credentials successfully obtained and saved")
 
     return {"message": "Authentication successful! You can now use the /sync endpoint."}
@@ -288,12 +288,16 @@ async def get_providers():
 
 
 async def run_sync_task(
-    google_credentials: Any,
     providers: List[Provider],
     start_date: date,
     end_date: date,
 ):
     """Background task to run the sync process."""
+    google_credentials = await get_google_credentials()
+    if not google_credentials:
+        logger.error("Background sync failed: Not authenticated with Google")
+        return
+
     try:
         await Sync(
             google_credentials=google_credentials,
@@ -310,8 +314,8 @@ async def trigger_sync(request: SyncRequest, background_tasks: BackgroundTasks):
     """
     Triggers the synchronization process in the background.
     """
-    # Get credentials from app state
-    google_credentials = app.state.google_credentials
+    # Refresh and get credentials
+    google_credentials = await get_google_credentials()
 
     if not google_credentials:
         raise HTTPException(status_code=401, detail="Not authenticated with Google. Please visit /auth/login")
@@ -319,7 +323,6 @@ async def trigger_sync(request: SyncRequest, background_tasks: BackgroundTasks):
     # Add to background tasks
     background_tasks.add_task(
         run_sync_task,
-        google_credentials,
         request.providers,
         request.start_date,
         request.end_date,
