@@ -1,14 +1,17 @@
+import hashlib
+import hmac
 import json
 import logging
 import os
+import secrets
 import importlib.metadata
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
-from typing import Any, List
+from typing import Any, List, Optional
 
-from fastapi import FastAPI, Request, HTTPException, Security, Depends, BackgroundTasks
-from fastapi.security.api_key import APIKeyHeader
-from fastapi.responses import RedirectResponse
+from fastapi import FastAPI, Form, Request, HTTPException, Depends, BackgroundTasks
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, model_validator
@@ -33,9 +36,18 @@ DEV_MODE = os.getenv("DEV_MODE") == "true"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] - %(message)s")
 logger = logging.getLogger(__name__)
 
-API_KEY = os.getenv("API_KEY")
-API_KEY_NAME = "X-API-Key"
-api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+BASIC_AUTH_USERNAME = os.getenv("BASIC_AUTH_USERNAME")
+BASIC_AUTH_PASSWORD = os.getenv("BASIC_AUTH_PASSWORD")
+
+SESSION_TOKEN: Optional[str] = None
+if BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD:
+    SESSION_TOKEN = hmac.new(
+        BASIC_AUTH_PASSWORD.encode(),
+        BASIC_AUTH_USERNAME.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+http_basic = HTTPBasic(auto_error=False)
 
 SYNC_SCHEDULE = os.getenv("SYNC_SCHEDULE")
 
@@ -46,21 +58,28 @@ except ValueError:
     SYNC_DAYS_OFFSET = 10
 
 
-async def get_api_key(request: Request, api_key_header: str = Security(api_key_header)):
-    """Validate the API key from the header."""
-    # Allow initial browser requests for the UI to show the password prompt
-    if "text/html" in request.headers.get("accept", "") and "hx-request" not in request.headers:
-        return api_key_header
+async def get_basic_auth(
+    request: Request,
+    credentials: Optional[HTTPBasicCredentials] = Depends(http_basic),
+):
+    """Validate session cookie (browser) or Basic Auth (API/Swagger)."""
+    if not BASIC_AUTH_USERNAME or not BASIC_AUTH_PASSWORD:
+        return True
 
-    if not API_KEY:
-        # If API_KEY is not set in environment, security is disabled
-        return api_key_header
-    if api_key_header == API_KEY:
-        return api_key_header
-    raise HTTPException(
-        status_code=401,
-        detail="Could not validate credentials",
-    )
+    # Cookie auth (browser / web UI)
+    cookie_token = request.cookies.get("session")
+    if cookie_token and secrets.compare_digest(cookie_token, SESSION_TOKEN):
+        return True
+
+    # Basic auth fallback (Swagger / API clients)
+    if (
+        credentials
+        and secrets.compare_digest(credentials.username, BASIC_AUTH_USERNAME)
+        and secrets.compare_digest(credentials.password, BASIC_AUTH_PASSWORD)
+    ):
+        return True
+
+    raise HTTPException(status_code=401, detail="Not authenticated")
 
 
 async def scheduled_sync(app: FastAPI):
@@ -99,8 +118,8 @@ async def lifespan(app: FastAPI):  # noqa: D103
     else:
         logger.warning("Google credentials not found or expired. Please visit /auth/login")
 
-    if not API_KEY:
-        logger.warning("API_KEY not set in environment variables. Security is disabled.")
+    if not BASIC_AUTH_USERNAME or not BASIC_AUTH_PASSWORD:
+        logger.warning("BASIC_AUTH_USERNAME/BASIC_AUTH_PASSWORD not set. Security is disabled.")
 
     # Setup Scheduler
     scheduler = None
@@ -138,6 +157,16 @@ app = FastAPI(
     version=__version__,
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(401)
+async def auth_exception_handler(request: Request, exc: HTTPException):
+    is_html = "text/html" in request.headers.get("accept", "")
+    is_htmx = "hx-request" in request.headers
+    if is_html and not is_htmx:
+        return RedirectResponse(url="/login")
+    return JSONResponse(status_code=401, content={"detail": exc.detail})
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
@@ -187,13 +216,23 @@ class SyncResponse(BaseModel):
     status: str
 
 
-@app.get("/", dependencies=[Depends(get_api_key)])
+@app.get("/", dependencies=[Depends(get_basic_auth)])
 async def root(request: Request):
     """
     Return the API status and version.
     """
     google_credentials = await get_google_credentials()
     authenticated = google_credentials is not None
+
+    auth_url = None
+    if not authenticated:
+        try:
+            flow = get_google_flow()
+            auth_url, _ = flow.authorization_url(
+                access_type="offline", include_granted_scopes="true", prompt="consent"
+            )
+        except Exception as e:
+            logger.warning(f"Could not generate auth URL: {e}")
 
     last_sync = None
     if os.path.exists(last_sync_file):
@@ -205,7 +244,7 @@ async def root(request: Request):
 
     # Handle HTML requests for the UI
     accept = request.headers.get("accept", "")
-    security_enabled = bool(API_KEY)
+    security_enabled = bool(BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD)
 
     if "text/html" in accept and "hx-request" not in request.headers:
         return templates.TemplateResponse(
@@ -221,6 +260,7 @@ async def root(request: Request):
             "status_fragment.html",
             {
                 "authenticated": authenticated,
+                "auth_url": auth_url,
                 "last_sync": last_sync,
                 "version": app.version,
                 "security_enabled": security_enabled,
@@ -235,41 +275,60 @@ async def root(request: Request):
     }
 
 
-@app.get("/auth/login")
-async def auth_login(request: Request):
+@app.get("/login", include_in_schema=False)
+async def login_page(request: Request, error: bool = False):
+    """Serve the login page. Redirect to / if already authenticated."""
+    if BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD:
+        cookie_token = request.cookies.get("session")
+        if cookie_token and secrets.compare_digest(cookie_token, SESSION_TOKEN):
+            return RedirectResponse(url="/")
+    return templates.TemplateResponse(request, "login.html", {"error": error})
+
+
+@app.post("/login", include_in_schema=False)
+async def login(
+    username: str = Form(...),
+    password: str = Form(...),
+):
+    """Validate credentials and set session cookie."""
+    if (
+        BASIC_AUTH_USERNAME
+        and BASIC_AUTH_PASSWORD
+        and secrets.compare_digest(username, BASIC_AUTH_USERNAME)
+        and secrets.compare_digest(password, BASIC_AUTH_PASSWORD)
+    ):
+        resp = RedirectResponse(url="/", status_code=303)
+        resp.set_cookie("session", SESSION_TOKEN, httponly=True, samesite="lax")
+        return resp
+    return RedirectResponse(url="/login?error=1", status_code=303)
+
+
+@app.post("/logout", include_in_schema=False)
+async def logout():
+    """Clear session cookie and redirect to login."""
+    resp = RedirectResponse(url="/login", status_code=303)
+    resp.delete_cookie("session")
+    return resp
+
+
+
+class TokenRequest(BaseModel):
+    code: str
+
+
+@app.post("/auth/token", dependencies=[Depends(get_basic_auth)])
+async def auth_token(request: Request, body: TokenRequest):
     """
-    Initializes the Google OAuth2 flow and redirects to Google's authorization page.
+    Exchanges the authorization code for tokens and saves them.
+    The code is the value of the 'code' query parameter from the redirect URL
+    (http://localhost/?code=...) after authorizing on Google.
     """
-    redirect_uri = str(request.url_for("auth_callback"))
-
-    if "localhost" in redirect_uri:
-        redirect_uri = redirect_uri.replace("https://", "http://")
-
-    if not DEV_MODE and "localhost" not in redirect_uri and redirect_uri.startswith("http://"):
-        redirect_uri = redirect_uri.replace("http://", "https://", 1)
-
-    flow = get_google_flow(redirect_uri)
-    authorization_url, state = flow.authorization_url(
-        access_type="offline", include_granted_scopes="true", prompt="consent"
-    )
-    return RedirectResponse(authorization_url)
-
-
-@app.get("/auth/callback")
-async def auth_callback(request: Request, code: str):
-    """
-    Callback for Google OAuth2. Exchanges the code for tokens.
-    """
-    redirect_uri = str(request.url_for("auth_callback"))
-
-    if "localhost" in redirect_uri:
-        redirect_uri = redirect_uri.replace("https://", "http://")
-
-    if not DEV_MODE and "localhost" not in redirect_uri and redirect_uri.startswith("http://"):
-        redirect_uri = redirect_uri.replace("http://", "https://", 1)
-
-    flow = get_google_flow(redirect_uri)
-    flow.fetch_token(code=code)
+    try:
+        flow = get_google_flow()
+        flow.fetch_token(code=body.code)
+    except Exception as e:
+        logger.error(f"Failed to exchange auth code: {e}")
+        raise HTTPException(status_code=400, detail="Invalid or expired authorization code")
 
     credentials = flow.credentials
     with open(google_token_file, "w") as token:
@@ -277,10 +336,16 @@ async def auth_callback(request: Request, code: str):
 
     logger.info("Google credentials successfully obtained and saved")
 
+    if "hx-request" in request.headers:
+        return JSONResponse(
+            content={"message": "Authentication successful!"},
+            headers={"HX-Refresh": "true"},
+        )
+
     return {"message": "Authentication successful! You can now use the /sync endpoint."}
 
 
-@app.get("/providers", dependencies=[Depends(get_api_key)])
+@app.get("/providers", dependencies=[Depends(get_basic_auth)])
 async def get_providers():
     """
     Return the list of available providers.
@@ -310,7 +375,7 @@ async def run_sync_task(
         logger.error(f"Background sync failed: {e}")
 
 
-@app.post("/sync", response_model=SyncResponse, dependencies=[Depends(get_api_key)])
+@app.post("/sync", response_model=SyncResponse, dependencies=[Depends(get_basic_auth)])
 async def trigger_sync(request: SyncRequest, background_tasks: BackgroundTasks):
     """
     Triggers the synchronization process in the background.

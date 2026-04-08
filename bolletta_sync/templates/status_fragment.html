@@ -15,23 +15,123 @@
         <p
           class="text-xs {% if authenticated %}text-green-600{% else %}text-red-600{% endif %}"
         >
-          {% if authenticated %}Sessione Attiva / Collegato{% else %}Azione
-          Richiesta / Disconnesso{% endif %}
+          {% if authenticated %}Active Session / Connected{% else %}Action
+          Required / Disconnected{% endif %}
         </p>
       </div>
     </div>
     <div class="text-right">
       <p class="text-xs text-gray-400 uppercase tracking-wider font-bold">
-        Versione Sistema
+        System Version
       </p>
       <p class="text-sm font-mono text-gray-600">{{ version }}</p>
     </div>
   </div>
 
+  <!-- Google Auth Section (only when not authenticated) -->
+  {% if not authenticated %}
+  <div class="rounded-xl border border-yellow-200 bg-yellow-50 p-5 space-y-4">
+    <div class="flex items-start space-x-3">
+      <svg
+        class="w-5 h-5 text-yellow-500 mt-0.5 shrink-0"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+        />
+      </svg>
+      <div class="space-y-1">
+        <p class="text-sm font-semibold text-yellow-800">
+          Google authentication required
+        </p>
+        <p class="text-xs text-yellow-700">
+          Open the link below, authorize the app, then paste the code from the
+          redirect URL (<code class="font-mono bg-yellow-100 px-1 rounded"
+            >http://localhost/?code=…</code
+          >).
+        </p>
+      </div>
+    </div>
+
+    {% if auth_url %}
+    <div class="space-y-1">
+      <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">
+        Authorization URL
+      </p>
+      <a
+        href="{{ auth_url }}"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="block text-xs font-mono text-blue-600 hover:text-blue-800 underline break-all"
+      >
+        {{ auth_url }}
+      </a>
+    </div>
+    {% else %}
+    <p class="text-xs text-red-600">
+      Unable to generate authorization URL. Check that
+      <code class="font-mono">google_credentials.json</code> exists.
+    </p>
+    {% endif %}
+
+    <form
+      hx-post="/auth/token"
+      hx-ext="json-enc"
+      hx-target="body"
+      hx-swap="none"
+      class="space-y-3"
+    >
+      <div class="space-y-1">
+        <label
+          for="auth-code"
+          class="text-xs font-bold text-gray-500 uppercase tracking-wider"
+          >Authorization code</label
+        >
+        <input
+          id="auth-code"
+          name="code"
+          type="text"
+          required
+          placeholder="Paste the code here..."
+          class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400"
+        />
+      </div>
+      <button
+        type="submit"
+        class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+      >
+        <span class="htmx-indicator mr-2">
+          <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+            />
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8v8H4z"
+            />
+          </svg>
+        </span>
+        Authorize
+      </button>
+    </form>
+  </div>
+  {% endif %}
+
   <!-- Sync Details Section -->
   <div class="space-y-4">
     <div class="flex items-center justify-between">
-      <h3 class="text-lg font-bold text-gray-800">Ultima Sincronizzazione</h3>
+      <h3 class="text-lg font-bold text-gray-800">Last Sync</h3>
       {% if last_sync %}
       <span
         class="px-2.5 py-0.5 rounded-full text-xs font-medium {% if last_sync.status == 'success' %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}"
@@ -46,7 +146,7 @@
       class="grid grid-cols-1 gap-4 bg-gray-50 rounded-xl p-4 border border-gray-100"
     >
       <div class="space-y-1">
-        <p class="text-xs text-gray-500 uppercase font-bold">Data Esecuzione</p>
+        <p class="text-xs text-gray-500 uppercase font-bold">Run Date</p>
         <p class="text-sm font-mono text-gray-700">{{ last_sync.date }}</p>
       </div>
     </div>
@@ -67,7 +167,7 @@
             d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
           ></path>
         </svg>
-        Dettaglio Provider
+        Provider Details
       </p>
       <div
         class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg"
@@ -83,12 +183,12 @@
               <th
                 class="py-2 px-3 text-center text-xs font-bold text-gray-500 uppercase"
               >
-                Bollette
+                Invoices
               </th>
               <th
                 class="py-2 px-3 text-right text-xs font-bold text-gray-500 uppercase"
               >
-                Stato
+                Status
               </th>
             </tr>
           </thead>
@@ -113,7 +213,7 @@
                 <span
                   class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold {% if data.status == 'success' %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}"
                 >
-                  {% if data.status == 'success' %}OK{% else %}ERRORE{% endif %}
+                  {% if data.status == 'success' %}OK{% else %}ERROR{% endif %}
                 </span>
               </td>
             </tr>
@@ -121,7 +221,7 @@
             <tr class="bg-gray-50/50">
               <td colspan="3" class="px-3 py-2">
                 <div class="text-[10px] text-gray-400 font-bold uppercase mb-1">
-                  Documenti rilevati:
+                  Detected documents:
                 </div>
                 <div class="flex flex-wrap gap-1">
                   {% for inv in data.invoices %}
@@ -160,7 +260,7 @@
               d="M9 5l7 7-7 7"
             ></path>
           </svg>
-          Mostra dati JSON grezzi
+          Show raw JSON data
         </summary>
         <div
           class="mt-2 bg-gray-900 rounded-lg p-4 overflow-x-auto text-[10px] leading-relaxed font-mono text-blue-300"
@@ -187,10 +287,8 @@
           d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
         ></path>
       </svg>
-      <p class="text-gray-500 font-medium">Nessuna attività registrata</p>
-      <p class="text-xs text-gray-400">
-        I dati appariranno dopo la prima sincronizzazione
-      </p>
+      <p class="text-gray-500 font-medium">No activity recorded</p>
+      <p class="text-xs text-gray-400">Data will appear after the first sync</p>
     </div>
     {% endif %}
   </div>
