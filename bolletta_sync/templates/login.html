@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="it">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Bolletta Sync - Accedi</title>
+    <title>Bolletta Sync - Login</title>
     <link rel="icon" href="/static/logo.png" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -25,7 +25,7 @@
 
       {% if error %}
       <div class="mb-4 p-3 bg-red-100 text-red-700 rounded text-sm">
-        Credenziali non valide. Riprova.
+        Invalid credentials. Please try again.
       </div>
       {% endif %}
 
@@ -54,7 +54,7 @@
           type="submit"
           class="w-full bg-blue-600 text-white py-2 px-4 rounded font-semibold hover:bg-blue-700 transition-colors"
         >
-          Accedi
+          Sign in
         </button>
       </form>
     </div>
