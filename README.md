@@ -23,7 +23,7 @@ Bolletta Sync is a Python-based web service designed to automate the synchroniza
 
 - **Python 3.13** or higher.
 - **Google Cloud Project**: You need a project with the Google Drive API and Google Tasks API enabled.
-- **Google Credentials**: A `google_credentials.json` file (**Web application type**) placed in the `data/` folder.
+- **Google Credentials**: A `google_credentials.json` file (**Desktop application type**) placed in the `data/` folder.
 - **CAPSolver API Key**: Required for solving ReCaptcha on the Eni Plenitude portal.
 
 ## Installation
@@ -73,7 +73,8 @@ UMBRA_ACQUE_PASSWORD=your_password
 DEV_MODE=false
 
 # Security (Optional)
-API_KEY=your_secret_api_key
+BASIC_AUTH_USERNAME=your_username
+BASIC_AUTH_PASSWORD=your_password
 
 # Schedule (Optional)
 SYNC_SCHEDULE="0 0 * * *"  # Crontab expression for automated sync
@@ -83,11 +84,10 @@ SYNC_DAYS_OFFSET=10        # Optional: Number of days to look back (default: 10)
 ### Google OAuth2 Setup
 
 1. Go to the [Google Cloud Console](https://console.cloud.google.com/).
-2. Create an **OAuth 2.0 Client ID** of type **Web Application**.
-3. Add the following to **Authorized redirect URIs**:
-   - `http://localhost:8000/auth/callback` (for local development)
-   - `https://your-domain.com/auth/callback` (for production)
-4. Download the JSON file and rename it to `google_credentials.json` in the `data/` folder.
+2. Create an **OAuth 2.0 Client ID** of type **Desktop application**.
+3. Download the JSON file and rename it to `google_credentials.json` in the `data/` folder.
+
+No redirect URIs need to be configured.
 
 ## Usage
 
@@ -101,13 +101,16 @@ poetry run fastapi dev bolletta_sync/main.py
 
 The service will be available at `http://localhost:8000`.
 
-### Authentication Flow
+### Google Authentication Flow
 
-Before running a sync, you must authorize the application:
+Before running a sync, you must authorize the application with Google:
 
-1. Visit `http://localhost:8000/auth/login`.
-2. Complete the Google login process.
-3. Once authorized, a `google_token.json` file will be created in the `data/` folder for future sessions.
+1. Open the dashboard at `http://localhost:8000`.
+2. If not yet authenticated, a Google authorization URL will appear on the page — click it.
+3. Complete the Google login process. Google will redirect you to `http://localhost/?code=...`.
+4. Copy the `code` value from that URL.
+5. Paste the code into the form on the dashboard and click **Authorize**.
+6. A `google_token.json` file will be saved in the `data/` folder for future sessions.
 
 ### Automated Scheduling
 
@@ -117,11 +120,11 @@ It will attempt to sync all providers for the last `SYNC_DAYS_OFFSET` days (defa
 
 ### API Endpoints
 
-If the `API_KEY` environment variable is set, the `/providers` and `/sync` endpoints require the `X-API-Key` header.
+If `BASIC_AUTH_USERNAME` and `BASIC_AUTH_PASSWORD` are set, all API endpoints require authentication via session cookie (browser) or HTTP Basic Auth (API clients / Swagger).
 
-- **GET `/`**: Check API status, version, authentication state, and the details of the last synchronization.
-- **GET `/auth/login`**: Start the Google OAuth2 flow.
+- **GET `/`**: Check API status, version, Google authentication state, and the details of the last synchronization.
 - **GET `/providers`**: List supported providers.
+- **POST `/auth/token`**: Exchange a Google authorization code for a token. Body: `{ "code": "<code>" }`.
 - **POST `/sync`**: Trigger a synchronization process in the background. Returns a 200 status code once the process has been taken over by the server.
   
   **Request Body Example**:
