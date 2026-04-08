@@ -10,26 +10,11 @@
     <script src="https://cdn.tailwindcss.com"></script>
     {% if security_enabled %}
     <script>
-      (function () {
-        const auth = localStorage.getItem("basic_auth");
-        if (!auth) {
+      document.addEventListener("htmx:responseError", (event) => {
+        if (event.detail.xhr.status === 401) {
           window.location.href = "/login";
         }
-
-        document.addEventListener("htmx:configRequest", (event) => {
-          const auth = localStorage.getItem("basic_auth");
-          if (auth) {
-            event.detail.headers["Authorization"] = "Basic " + auth;
-          }
-        });
-
-        document.addEventListener("htmx:responseError", (event) => {
-          if (event.detail.xhr.status === 401) {
-            localStorage.removeItem("basic_auth");
-            window.location.href = "/login?error=1";
-          }
-        });
-      })();
+      });
     </script>
     {% endif %}
     <style>
@@ -85,15 +70,9 @@
     >
       <div class="mb-2">Bolletta Sync</div>
       {% if security_enabled %}
-      <button
-        onclick="
-          localStorage.removeItem('basic_auth');
-          window.location.href = '/login';
-        "
-        class="text-xs text-blue-500 hover:underline"
-      >
-        Sign out
-      </button>
+      <form method="post" action="/logout" style="display:inline">
+        <button type="submit" class="text-xs text-blue-500 hover:underline">Sign out</button>
+      </form>
       {% endif %}
     </footer>
   </body>

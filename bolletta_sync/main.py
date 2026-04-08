@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -7,7 +9,7 @@ from contextlib import asynccontextmanager
 from datetime import date, timedelta
 from typing import Any, List, Optional
 
-from fastapi import FastAPI, Request, HTTPException, Depends, BackgroundTasks
+from fastapi import FastAPI, Form, Request, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
@@ -37,6 +39,14 @@ logger = logging.getLogger(__name__)
 BASIC_AUTH_USERNAME = os.getenv("BASIC_AUTH_USERNAME")
 BASIC_AUTH_PASSWORD = os.getenv("BASIC_AUTH_PASSWORD")
 
+SESSION_TOKEN: Optional[str] = None
+if BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD:
+    SESSION_TOKEN = hmac.new(
+        BASIC_AUTH_PASSWORD.encode(),
+        BASIC_AUTH_USERNAME.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
 http_basic = HTTPBasic(auto_error=False)
 
 SYNC_SCHEDULE = os.getenv("SYNC_SCHEDULE")
@@ -52,15 +62,16 @@ async def get_basic_auth(
     request: Request,
     credentials: Optional[HTTPBasicCredentials] = Depends(http_basic),
 ):
-    """Validate Basic Auth credentials."""
+    """Validate session cookie (browser) or Basic Auth (API/Swagger)."""
     if not BASIC_AUTH_USERNAME or not BASIC_AUTH_PASSWORD:
         return True
 
-    is_htmx = "hx-request" in request.headers
-    # Allow initial HTML page loads — JS in index.html handles redirect to /login
-    if "text/html" in request.headers.get("accept", "") and not is_htmx:
+    # Cookie auth (browser / web UI)
+    cookie_token = request.cookies.get("session")
+    if cookie_token and secrets.compare_digest(cookie_token, SESSION_TOKEN):
         return True
 
+    # Basic auth fallback (Swagger / API clients)
     if (
         credentials
         and secrets.compare_digest(credentials.username, BASIC_AUTH_USERNAME)
@@ -266,8 +277,38 @@ async def root(request: Request):
 
 @app.get("/login", include_in_schema=False)
 async def login_page(request: Request, error: bool = False):
-    """Serve the login page."""
+    """Serve the login page. Redirect to / if already authenticated."""
+    if BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD:
+        cookie_token = request.cookies.get("session")
+        if cookie_token and secrets.compare_digest(cookie_token, SESSION_TOKEN):
+            return RedirectResponse(url="/")
     return templates.TemplateResponse(request, "login.html", {"error": error})
+
+
+@app.post("/login", include_in_schema=False)
+async def login(
+    username: str = Form(...),
+    password: str = Form(...),
+):
+    """Validate credentials and set session cookie."""
+    if (
+        BASIC_AUTH_USERNAME
+        and BASIC_AUTH_PASSWORD
+        and secrets.compare_digest(username, BASIC_AUTH_USERNAME)
+        and secrets.compare_digest(password, BASIC_AUTH_PASSWORD)
+    ):
+        resp = RedirectResponse(url="/", status_code=303)
+        resp.set_cookie("session", SESSION_TOKEN, httponly=True, samesite="lax")
+        return resp
+    return RedirectResponse(url="/login?error=1", status_code=303)
+
+
+@app.post("/logout", include_in_schema=False)
+async def logout():
+    """Clear session cookie and redirect to login."""
+    resp = RedirectResponse(url="/login", status_code=303)
+    resp.delete_cookie("session")
+    return resp
 
 
 
