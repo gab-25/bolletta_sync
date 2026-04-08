@@ -4,36 +4,29 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bolletta Sync Dashboard</title>
+    <link rel="icon" href="/static/logo.png" />
     <script src="https://unpkg.com/htmx.org@2.0.0"></script>
     <script src="https://unpkg.com/htmx-ext-json-enc@2.0.0"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     {% if security_enabled %}
     <script>
       (function () {
-        const password = localStorage.getItem("api_key");
-        if (!password) {
-          const input = prompt("Inserisci la API Key per accedere:");
-          if (input) {
-            localStorage.setItem("api_key", input);
-          } else {
-            document.documentElement.innerHTML =
-              '<body class="bg-gray-100 flex items-center justify-center min-h-screen text-red-600 font-bold text-xl">Accesso Negato: API Key richiesta.</body>';
-          }
+        const auth = localStorage.getItem("basic_auth");
+        if (!auth) {
+          window.location.href = "/login";
         }
 
-        // Global HTMX listeners for reliable header injection
         document.addEventListener("htmx:configRequest", (event) => {
-          const key = localStorage.getItem("api_key");
-          if (key) {
-            event.detail.headers["X-API-Key"] = key;
+          const auth = localStorage.getItem("basic_auth");
+          if (auth) {
+            event.detail.headers["Authorization"] = "Basic " + auth;
           }
         });
 
         document.addEventListener("htmx:responseError", (event) => {
           if (event.detail.xhr.status === 401) {
-            localStorage.removeItem("api_key");
-            alert("API Key non valida o scaduta.");
-            location.reload();
+            localStorage.removeItem("basic_auth");
+            window.location.href = "/login?error=1";
           }
         });
       })();
@@ -94,12 +87,12 @@
       {% if security_enabled %}
       <button
         onclick="
-          localStorage.removeItem('api_key');
-          location.reload();
+          localStorage.removeItem('basic_auth');
+          window.location.href = '/login';
         "
         class="text-xs text-blue-500 hover:underline"
       >
-        Esci / Cambia Key
+        Esci
       </button>
       {% endif %}
     </footer>

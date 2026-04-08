@@ -1,14 +1,15 @@
 import json
 import logging
 import os
+import secrets
 import importlib.metadata
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
-from typing import Any, List
+from typing import Any, List, Optional
 
-from fastapi import FastAPI, Request, HTTPException, Security, Depends, BackgroundTasks
-from fastapi.security.api_key import APIKeyHeader
-from fastapi.responses import RedirectResponse
+from fastapi import FastAPI, Request, HTTPException, Depends, BackgroundTasks
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, model_validator
@@ -33,9 +34,10 @@ DEV_MODE = os.getenv("DEV_MODE") == "true"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] - %(message)s")
 logger = logging.getLogger(__name__)
 
-API_KEY = os.getenv("API_KEY")
-API_KEY_NAME = "X-API-Key"
-api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+BASIC_AUTH_USERNAME = os.getenv("BASIC_AUTH_USERNAME")
+BASIC_AUTH_PASSWORD = os.getenv("BASIC_AUTH_PASSWORD")
+
+http_basic = HTTPBasic(auto_error=False)
 
 SYNC_SCHEDULE = os.getenv("SYNC_SCHEDULE")
 
@@ -46,21 +48,27 @@ except ValueError:
     SYNC_DAYS_OFFSET = 10
 
 
-async def get_api_key(request: Request, api_key_header: str = Security(api_key_header)):
-    """Validate the API key from the header."""
-    # Allow initial browser requests for the UI to show the password prompt
-    if "text/html" in request.headers.get("accept", "") and "hx-request" not in request.headers:
-        return api_key_header
+async def get_basic_auth(
+    request: Request,
+    credentials: Optional[HTTPBasicCredentials] = Depends(http_basic),
+):
+    """Validate Basic Auth credentials."""
+    if not BASIC_AUTH_USERNAME or not BASIC_AUTH_PASSWORD:
+        return True
 
-    if not API_KEY:
-        # If API_KEY is not set in environment, security is disabled
-        return api_key_header
-    if api_key_header == API_KEY:
-        return api_key_header
-    raise HTTPException(
-        status_code=401,
-        detail="Could not validate credentials",
-    )
+    is_htmx = "hx-request" in request.headers
+    # Allow initial HTML page loads — JS in index.html handles redirect to /login
+    if "text/html" in request.headers.get("accept", "") and not is_htmx:
+        return True
+
+    if (
+        credentials
+        and secrets.compare_digest(credentials.username, BASIC_AUTH_USERNAME)
+        and secrets.compare_digest(credentials.password, BASIC_AUTH_PASSWORD)
+    ):
+        return True
+
+    raise HTTPException(status_code=401, detail="Not authenticated")
 
 
 async def scheduled_sync(app: FastAPI):
@@ -99,8 +107,8 @@ async def lifespan(app: FastAPI):  # noqa: D103
     else:
         logger.warning("Google credentials not found or expired. Please visit /auth/login")
 
-    if not API_KEY:
-        logger.warning("API_KEY not set in environment variables. Security is disabled.")
+    if not BASIC_AUTH_USERNAME or not BASIC_AUTH_PASSWORD:
+        logger.warning("BASIC_AUTH_USERNAME/BASIC_AUTH_PASSWORD not set. Security is disabled.")
 
     # Setup Scheduler
     scheduler = None
@@ -138,6 +146,16 @@ app = FastAPI(
     version=__version__,
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(401)
+async def auth_exception_handler(request: Request, exc: HTTPException):
+    is_html = "text/html" in request.headers.get("accept", "")
+    is_htmx = "hx-request" in request.headers
+    if is_html and not is_htmx:
+        return RedirectResponse(url="/login")
+    return JSONResponse(status_code=401, content={"detail": exc.detail})
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
@@ -187,7 +205,7 @@ class SyncResponse(BaseModel):
     status: str
 
 
-@app.get("/", dependencies=[Depends(get_api_key)])
+@app.get("/", dependencies=[Depends(get_basic_auth)])
 async def root(request: Request):
     """
     Return the API status and version.
@@ -205,7 +223,7 @@ async def root(request: Request):
 
     # Handle HTML requests for the UI
     accept = request.headers.get("accept", "")
-    security_enabled = bool(API_KEY)
+    security_enabled = bool(BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD)
 
     if "text/html" in accept and "hx-request" not in request.headers:
         return templates.TemplateResponse(
@@ -235,7 +253,13 @@ async def root(request: Request):
     }
 
 
-@app.get("/auth/login")
+@app.get("/login", include_in_schema=False)
+async def login_page(request: Request, error: bool = False):
+    """Serve the login page."""
+    return templates.TemplateResponse(request, "login.html", {"error": error})
+
+
+@app.get("/auth/login", include_in_schema=False)
 async def auth_login(request: Request):
     """
     Initializes the Google OAuth2 flow and redirects to Google's authorization page.
@@ -255,7 +279,7 @@ async def auth_login(request: Request):
     return RedirectResponse(authorization_url)
 
 
-@app.get("/auth/callback")
+@app.get("/auth/callback", include_in_schema=False)
 async def auth_callback(request: Request, code: str):
     """
     Callback for Google OAuth2. Exchanges the code for tokens.
@@ -280,7 +304,7 @@ async def auth_callback(request: Request, code: str):
     return {"message": "Authentication successful! You can now use the /sync endpoint."}
 
 
-@app.get("/providers", dependencies=[Depends(get_api_key)])
+@app.get("/providers", dependencies=[Depends(get_basic_auth)])
 async def get_providers():
     """
     Return the list of available providers.
@@ -310,7 +334,7 @@ async def run_sync_task(
         logger.error(f"Background sync failed: {e}")
 
 
-@app.post("/sync", response_model=SyncResponse, dependencies=[Depends(get_api_key)])
+@app.post("/sync", response_model=SyncResponse, dependencies=[Depends(get_basic_auth)])
 async def trigger_sync(request: SyncRequest, background_tasks: BackgroundTasks):
     """
     Triggers the synchronization process in the background.
