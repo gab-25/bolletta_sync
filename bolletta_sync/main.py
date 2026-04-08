@@ -213,6 +213,16 @@ async def root(request: Request):
     google_credentials = await get_google_credentials()
     authenticated = google_credentials is not None
 
+    auth_url = None
+    if not authenticated:
+        try:
+            flow = get_google_flow()
+            auth_url, _ = flow.authorization_url(
+                access_type="offline", include_granted_scopes="true", prompt="consent"
+            )
+        except Exception as e:
+            logger.warning(f"Could not generate auth URL: {e}")
+
     last_sync = None
     if os.path.exists(last_sync_file):
         try:
@@ -239,6 +249,7 @@ async def root(request: Request):
             "status_fragment.html",
             {
                 "authenticated": authenticated,
+                "auth_url": auth_url,
                 "last_sync": last_sync,
                 "version": app.version,
                 "security_enabled": security_enabled,
@@ -259,47 +270,36 @@ async def login_page(request: Request, error: bool = False):
     return templates.TemplateResponse(request, "login.html", {"error": error})
 
 
-@app.get("/auth/login", include_in_schema=False)
-async def auth_login(request: Request):
+
+class TokenRequest(BaseModel):
+    code: str
+
+
+@app.post("/auth/token", dependencies=[Depends(get_basic_auth)])
+async def auth_token(request: Request, body: TokenRequest):
     """
-    Initializes the Google OAuth2 flow and redirects to Google's authorization page.
+    Exchanges the authorization code for tokens and saves them.
+    The code is the value of the 'code' query parameter from the redirect URL
+    (http://localhost/?code=...) after authorizing on Google.
     """
-    redirect_uri = str(request.url_for("auth_callback"))
-
-    if "localhost" in redirect_uri:
-        redirect_uri = redirect_uri.replace("https://", "http://")
-
-    if not DEV_MODE and "localhost" not in redirect_uri and redirect_uri.startswith("http://"):
-        redirect_uri = redirect_uri.replace("http://", "https://", 1)
-
-    flow = get_google_flow(redirect_uri)
-    authorization_url, state = flow.authorization_url(
-        access_type="offline", include_granted_scopes="true", prompt="consent"
-    )
-    return RedirectResponse(authorization_url)
-
-
-@app.get("/auth/callback", include_in_schema=False)
-async def auth_callback(request: Request, code: str):
-    """
-    Callback for Google OAuth2. Exchanges the code for tokens.
-    """
-    redirect_uri = str(request.url_for("auth_callback"))
-
-    if "localhost" in redirect_uri:
-        redirect_uri = redirect_uri.replace("https://", "http://")
-
-    if not DEV_MODE and "localhost" not in redirect_uri and redirect_uri.startswith("http://"):
-        redirect_uri = redirect_uri.replace("http://", "https://", 1)
-
-    flow = get_google_flow(redirect_uri)
-    flow.fetch_token(code=code)
+    try:
+        flow = get_google_flow()
+        flow.fetch_token(code=body.code)
+    except Exception as e:
+        logger.error(f"Failed to exchange auth code: {e}")
+        raise HTTPException(status_code=400, detail="Invalid or expired authorization code")
 
     credentials = flow.credentials
     with open(google_token_file, "w") as token:
         token.write(credentials.to_json())
 
     logger.info("Google credentials successfully obtained and saved")
+
+    if "hx-request" in request.headers:
+        return JSONResponse(
+            content={"message": "Authentication successful!"},
+            headers={"HX-Refresh": "true"},
+        )
 
     return {"message": "Authentication successful! You can now use the /sync endpoint."}
 

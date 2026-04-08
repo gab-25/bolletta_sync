@@ -28,6 +28,106 @@
     </div>
   </div>
 
+  <!-- Google Auth Section (only when not authenticated) -->
+  {% if not authenticated %}
+  <div class="rounded-xl border border-yellow-200 bg-yellow-50 p-5 space-y-4">
+    <div class="flex items-start space-x-3">
+      <svg
+        class="w-5 h-5 text-yellow-500 mt-0.5 shrink-0"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+        />
+      </svg>
+      <div class="space-y-1">
+        <p class="text-sm font-semibold text-yellow-800">
+          Google authentication required
+        </p>
+        <p class="text-xs text-yellow-700">
+          Open the link below, authorize the app, then paste the code from the
+          redirect URL (<code class="font-mono bg-yellow-100 px-1 rounded"
+            >http://localhost/?code=…</code
+          >).
+        </p>
+      </div>
+    </div>
+
+    {% if auth_url %}
+    <div class="space-y-1">
+      <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">
+        Authorization URL
+      </p>
+      <a
+        href="{{ auth_url }}"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="block text-xs font-mono text-blue-600 hover:text-blue-800 underline break-all"
+      >
+        {{ auth_url }}
+      </a>
+    </div>
+    {% else %}
+    <p class="text-xs text-red-600">
+      Unable to generate authorization URL. Check that
+      <code class="font-mono">google_credentials.json</code> exists.
+    </p>
+    {% endif %}
+
+    <form
+      hx-post="/auth/token"
+      hx-ext="json-enc"
+      hx-target="body"
+      hx-swap="none"
+      class="space-y-3"
+    >
+      <div class="space-y-1">
+        <label
+          for="auth-code"
+          class="text-xs font-bold text-gray-500 uppercase tracking-wider"
+          >Authorization code</label
+        >
+        <input
+          id="auth-code"
+          name="code"
+          type="text"
+          required
+          placeholder="Paste the code here..."
+          class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400"
+        />
+      </div>
+      <button
+        type="submit"
+        class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+      >
+        <span class="htmx-indicator mr-2">
+          <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+            />
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8v8H4z"
+            />
+          </svg>
+        </span>
+        Authorize
+      </button>
+    </form>
+  </div>
+  {% endif %}
+
   <!-- Sync Details Section -->
   <div class="space-y-4">
     <div class="flex items-center justify-between">
@@ -188,9 +288,7 @@
         ></path>
       </svg>
       <p class="text-gray-500 font-medium">No activity recorded</p>
-      <p class="text-xs text-gray-400">
-        Data will appear after the first sync
-      </p>
+      <p class="text-xs text-gray-400">Data will appear after the first sync</p>
     </div>
     {% endif %}
   </div>

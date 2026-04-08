@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Tuple, Optional
 
 from google.auth.transport.requests import Request as AuthRequest
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import Flow
+from google_auth_oauthlib.flow import InstalledAppFlow
 from playwright.async_api import async_playwright, Browser
 
 from bolletta_sync.providers.base_provider import Invoice
@@ -35,17 +35,18 @@ class Provider(Enum):
     UMBRA_ACQUE = "umbra_acque"
 
 
-def get_google_flow(redirect_uri: str) -> Flow:
+def get_google_flow() -> InstalledAppFlow:
     """
-    Creates a Google OAuth flow instance for a Web application.
+    Creates a Google OAuth flow instance for a Desktop (installed) application.
+    The redirect_uri is fixed to http://localhost as required by desktop clients.
     """
     if not os.path.exists(google_credentials_file):
         raise FileNotFoundError(f"Google credentials file not found at {google_credentials_file}")
 
-    return Flow.from_client_secrets_file(
+    return InstalledAppFlow.from_client_secrets_file(
         google_credentials_file,
         scopes=google_auth_scopes,
-        redirect_uri=redirect_uri,
+        redirect_uri="http://localhost",
     )
 
 
@@ -55,8 +56,6 @@ async def get_google_credentials() -> Optional[Credentials]:
     Refreshes the credentials if they are expired.
     Returns None if no token exists.
     """
-    google_credentials = None
-
     if os.path.exists(google_token_file):
         google_credentials = Credentials.from_authorized_user_file(google_token_file, google_auth_scopes)
     else:
