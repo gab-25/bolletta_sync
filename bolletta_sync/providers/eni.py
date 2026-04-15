@@ -23,9 +23,6 @@ class Eni(BaseProvider):
             await self.page.get_by_role("button", name="Prosegui", exact=True).click()
 
             await self.page.get_by_role("textbox", name="password").fill(os.getenv("ENI_PASSWORD"))  # pyright: ignore[reportArgumentType]
-            await self.page.get_by_role("button", name="Accedi").click()
-            await self.page.wait_for_timeout(1000)
-            await solver.solve_recaptcha(wait=True, image_challenge=True)
 
         async with self.page.expect_navigation():
             await self.page.get_by_role("button", name="Accedi").click()
