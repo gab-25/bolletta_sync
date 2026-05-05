@@ -108,50 +108,57 @@ class Sync:
     async def _exec_sync(self, provider: Provider, browser: Browser) -> List[Invoice]:
         logger.info(f"{provider.value} - Syncing invoices from {self._date_range[0]} to {self._date_range[1]}")
 
-        last_error: Exception = Exception("Unknown error")
-        for attempt in range(1, self._max_retries + 2):
-            if attempt > 1:
-                wait_seconds = 2 ** (attempt - 2)
-                logger.warning(
-                    f"{provider.value} - Retry {attempt - 1}/{self._max_retries} in {wait_seconds}s"
-                )
-                await asyncio.sleep(wait_seconds)
+        page = await browser.new_page(locale="en-EN")
+        instance = None
 
-            page = await browser.new_page(locale="en-EN")
-            instance = None
+        if provider == Provider.FASTWEB:
+            instance = Fastweb(self._google_credentials, page)
+        elif provider == Provider.FASTEWEB_ENERGIA:
+            instance = FastwebEnergia(self._google_credentials, page)
+        elif provider == Provider.ENI:
+            instance = Eni(self._google_credentials, page)
+        elif provider == Provider.UMBRA_ACQUE:
+            instance = UmbraAcque(self._google_credentials, page)
 
-            if provider == Provider.FASTWEB:
-                instance = Fastweb(self._google_credentials, page)
-            elif provider == Provider.FASTEWEB_ENERGIA:
-                instance = FastwebEnergia(self._google_credentials, page)
-            elif provider == Provider.ENI:
-                instance = Eni(self._google_credentials, page)
-            elif provider == Provider.UMBRA_ACQUE:
-                instance = UmbraAcque(self._google_credentials, page)
+        if instance is None:
+            await page.close()
+            raise Exception("Unknown provider")
 
-            if instance is None:
-                raise Exception("Unknown provider")
+        try:
+            last_error: Exception = Exception("Unknown error")
+            for attempt in range(1, self._max_retries + 2):
+                if attempt > 1:
+                    wait_seconds = 2 ** (attempt - 2)
+                    logger.warning(
+                        f"{provider.value} - Retry {attempt - 1}/{self._max_retries} in {wait_seconds}s"
+                    )
+                    await asyncio.sleep(wait_seconds)
 
-            try:
-                logger.info(f"{provider.value} - Syncing invoices (attempt {attempt}/{self._max_retries + 1})")
-                invoices = await instance.get_invoices(self._date_range[0], self._date_range[1])
-                logger.info(f"{provider.value} - Synced {len(invoices)} invoices")
-                await instance.check_namespace()
-                for invoice in invoices:
-                    doc = await instance.download_invoice(invoice)
-                    await instance.save_invoice(invoice, doc)
-                    await instance.set_expire_invoice(invoice)
+                try:
+                    logger.info(f"{provider.value} - Fetching invoices (attempt {attempt}/{self._max_retries + 1})")
+                    invoices = await instance.get_invoices(self._date_range[0], self._date_range[1])
+                    logger.info(f"{provider.value} - Fetched {len(invoices)} invoices")
+                    break
+                except Exception as e:
+                    last_error = e
+                    logger.error(f"{provider.value} - Error on attempt {attempt}/{self._max_retries + 1}: {e}")
+            else:
+                logger.error(f"{provider.value} - All {self._max_retries + 1} attempts failed")
+                raise last_error
 
-                logger.info(f"{provider.value} - Invoices synced successfully")
-                return invoices
-            except Exception as e:
-                last_error = e
-                logger.error(f"{provider.value} - Error on attempt {attempt}/{self._max_retries + 1}: {e}")
-            finally:
-                await page.close()
+            await instance.check_namespace()
+            for invoice in invoices:
+                doc = await instance.download_invoice(invoice)
+                await instance.save_invoice(invoice, doc)
+                await instance.set_expire_invoice(invoice)
 
-        logger.error(f"{provider.value} - All {self._max_retries + 1} attempts failed")
-        raise last_error
+            logger.info(f"{provider.value} - Invoices synced successfully")
+            return invoices
+        except Exception as e:
+            logger.error(f"{provider.value} - Error while syncing: {e}")
+            raise e
+        finally:
+            await page.close()
 
     async def run(self, headless: bool = True) -> Dict[str, Any]:
         """Run syncs invoices for the given providers and returns a summary of the results."""
