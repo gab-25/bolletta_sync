@@ -85,53 +85,73 @@ async def refresh_google_credentials(google_credentials: Credentials):
             logger.error(f"Failed to refresh Google credentials: {e}")
 
 
+DEFAULT_MAX_RETRIES = 3
+
+
 class Sync:
     """
     Syncs invoices for a list of providers over a given date range.
     """
 
     def __init__(
-        self, google_credentials: Credentials, providers: List[Provider], date_range: Tuple[date, date]
+        self,
+        google_credentials: Credentials,
+        providers: List[Provider],
+        date_range: Tuple[date, date],
+        max_retries: int = DEFAULT_MAX_RETRIES,
     ) -> None:
         self._google_credentials = google_credentials
         self._providers = providers
         self._date_range = date_range
+        self._max_retries = max_retries
 
     async def _exec_sync(self, provider: Provider, browser: Browser) -> List[Invoice]:
         logger.info(f"{provider.value} - Syncing invoices from {self._date_range[0]} to {self._date_range[1]}")
 
-        page = await browser.new_page(locale="en-EN")
-        instance = None
+        last_error: Exception = Exception("Unknown error")
+        for attempt in range(1, self._max_retries + 2):
+            if attempt > 1:
+                wait_seconds = 2 ** (attempt - 2)
+                logger.warning(
+                    f"{provider.value} - Retry {attempt - 1}/{self._max_retries} in {wait_seconds}s"
+                )
+                await asyncio.sleep(wait_seconds)
 
-        if provider == Provider.FASTWEB:
-            instance = Fastweb(self._google_credentials, page)
-        elif provider == Provider.FASTEWEB_ENERGIA:
-            instance = FastwebEnergia(self._google_credentials, page)
-        elif provider == Provider.ENI:
-            instance = Eni(self._google_credentials, page)
-        elif provider == Provider.UMBRA_ACQUE:
-            instance = UmbraAcque(self._google_credentials, page)
+            page = await browser.new_page(locale="en-EN")
+            instance = None
 
-        if instance is None:
-            raise Exception("Unknown provider")
+            if provider == Provider.FASTWEB:
+                instance = Fastweb(self._google_credentials, page)
+            elif provider == Provider.FASTEWEB_ENERGIA:
+                instance = FastwebEnergia(self._google_credentials, page)
+            elif provider == Provider.ENI:
+                instance = Eni(self._google_credentials, page)
+            elif provider == Provider.UMBRA_ACQUE:
+                instance = UmbraAcque(self._google_credentials, page)
 
-        try:
-            logger.info(f"{provider.value} - Syncing invoices")
-            invoices = await instance.get_invoices(self._date_range[0], self._date_range[1])
-            logger.info(f"{provider.value} - Synced {len(invoices)} invoices")
-            await instance.check_namespace()
-            for invoice in invoices:
-                doc = await instance.download_invoice(invoice)
-                await instance.save_invoice(invoice, doc)
-                await instance.set_expire_invoice(invoice)
+            if instance is None:
+                raise Exception("Unknown provider")
 
-            logger.info(f"{provider.value} - Invoices synced successfully")
-            return invoices
-        except Exception as e:
-            logger.error(f"{provider.value} - Error while syncing cause: {e}")
-            raise e
-        finally:
-            await page.close()
+            try:
+                logger.info(f"{provider.value} - Syncing invoices (attempt {attempt}/{self._max_retries + 1})")
+                invoices = await instance.get_invoices(self._date_range[0], self._date_range[1])
+                logger.info(f"{provider.value} - Synced {len(invoices)} invoices")
+                await instance.check_namespace()
+                for invoice in invoices:
+                    doc = await instance.download_invoice(invoice)
+                    await instance.save_invoice(invoice, doc)
+                    await instance.set_expire_invoice(invoice)
+
+                logger.info(f"{provider.value} - Invoices synced successfully")
+                return invoices
+            except Exception as e:
+                last_error = e
+                logger.error(f"{provider.value} - Error on attempt {attempt}/{self._max_retries + 1}: {e}")
+            finally:
+                await page.close()
+
+        logger.error(f"{provider.value} - All {self._max_retries + 1} attempts failed")
+        raise last_error
 
     async def run(self, headless: bool = True) -> Dict[str, Any]:
         """Run syncs invoices for the given providers and returns a summary of the results."""
