@@ -105,7 +105,7 @@ class Sync:
         self._date_range = date_range
         self._max_retries = max_retries
 
-    async def _exec_sync(self, provider: Provider, browser: Browser) -> List[Invoice]:
+    async def _exec_sync(self, provider: Provider, browser: Browser) -> Tuple[List[Invoice], int]:
         logger.info(f"{provider.value} - Syncing invoices from {self._date_range[0]} to {self._date_range[1]}")
 
         page = await browser.new_page(locale="en-EN")
@@ -126,7 +126,9 @@ class Sync:
 
         try:
             last_error: Exception = Exception("Unknown error")
+            attempts_used = 0
             for attempt in range(1, self._max_retries + 2):
+                attempts_used = attempt
                 if attempt > 1:
                     wait_seconds = 2 ** (attempt - 2)
                     logger.warning(
@@ -153,7 +155,7 @@ class Sync:
                 await instance.set_expire_invoice(invoice)
 
             logger.info(f"{provider.value} - Invoices synced successfully")
-            return invoices
+            return invoices, attempts_used
         except Exception as e:
             logger.error(f"{provider.value} - Error while syncing: {e}")
             raise e
@@ -171,14 +173,19 @@ class Sync:
 
             for provider in self._providers:
                 try:
-                    invoices = await self._exec_sync(provider, browser)
+                    invoices, attempts = await self._exec_sync(provider, browser)
                     results[provider.value] = {
                         "status": "success",
                         "count": len(invoices),
+                        "attempts": attempts,
                         "invoices": [invoice.model_dump(mode="json") for invoice in invoices],
                     }
                 except Exception as e:
-                    results[provider.value] = {"status": "error", "error": str(e)}
+                    results[provider.value] = {
+                        "status": "error",
+                        "attempts": self._max_retries + 1,
+                        "error": str(e),
+                    }
 
             await browser.close()
 

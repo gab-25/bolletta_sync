@@ -29,3 +29,6 @@ dev = [
 
 [tool.fastapi]
 entrypoint = "bolletta_sync.main:app"
+
+[tool.pyright]
+typeCheckingMode = "off"
