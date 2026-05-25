@@ -71,12 +71,12 @@ async def get_google_credentials() -> Optional[Credentials]:
     return google_credentials
 
 
-async def refresh_google_credentials(google_credentials: Credentials):
+async def refresh_google_credentials(google_credentials: Credentials, force: bool = False):
     """
-    Refreshes the Google credentials if they are expired.
+    Refreshes the Google credentials if they are expired or if force is True.
     """
-    if google_credentials.expired:
-        logger.info("Google credentials expired, refreshing")
+    if force or google_credentials.expired:
+        logger.info("Refreshing Google credentials")
         try:
             await asyncio.to_thread(google_credentials.refresh, AuthRequest())
             with open(google_token_file, "w") as token:
@@ -166,7 +166,7 @@ class Sync:
         """Run syncs invoices for the given providers and returns a summary of the results."""
         results = {}
 
-        await refresh_google_credentials(self._google_credentials)
+        await refresh_google_credentials(self._google_credentials, force=True)
 
         async with async_playwright() as playwright:
             browser = await playwright.chromium.launch(headless=headless)
