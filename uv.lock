@@ -116,8 +116,6 @@ dependencies = [
     { name = "google-auth-oauthlib" },
     { name = "playwright" },
     { name = "playwright-recaptcha" },
-    { name = "pydantic" },
-    { name = "python-dotenv" },
     { name = "requests" },
     { name = "standard-aifc" },
 ]
@@ -130,8 +128,6 @@ requires-dist = [
     { name = "google-auth-oauthlib", specifier = "==1.2.3" },
     { name = "playwright", specifier = "==1.56.0" },
     { name = "playwright-recaptcha", specifier = "==0.5.1" },
-    { name = "pydantic", specifier = "==2.12.4" },
-    { name = "python-dotenv", specifier = "==1.2.1" },
     { name = "requests", specifier = "==2.32.5" },
     { name = "standard-aifc", specifier = "==3.13.0" },
 ]
