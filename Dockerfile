@@ -15,6 +15,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 RUN python -m playwright install --with-deps chromium
 
+COPY README.md ./
 COPY ./bolletta_sync ./bolletta_sync
 RUN uv sync --frozen --no-dev
 
