@@ -21,6 +21,7 @@ Bolletta Sync is a Python-based web service designed to automate the synchroniza
 ## Prerequisites
 
 - **Python 3.13** or higher.
+- **[uv](https://docs.astral.sh/uv/)**: used for dependency management and running the app.
 - **Google Cloud Project**: You need a project with the Google Drive API and Google Tasks API enabled.
 - **Google Credentials**: A `google_credentials.json` file (**Desktop application type**) placed in the `data/` folder.
 - **CAPSolver API Key**: Required for solving ReCaptcha on the Eni Plenitude portal.
@@ -35,12 +36,12 @@ Bolletta Sync is a Python-based web service designed to automate the synchroniza
 
 2. **Install dependencies**:
    ```bash
-   poetry install
+   uv sync
    ```
 
 3. **Install Playwright Browsers**:
    ```bash
-   poetry run playwright install chromium
+   uv run playwright install chromium
    ```
 
 ## Configuration
@@ -94,7 +95,7 @@ No redirect URIs need to be configured.
 Run the server using FastAPI:
 
 ```bash
-poetry run fastapi dev bolletta_sync/main.py
+uv run fastapi dev bolletta_sync/main.py
 ```
 
 The service will be available at `http://localhost:8000`.
