@@ -129,7 +129,7 @@ If `BASIC_AUTH_USERNAME` and `BASIC_AUTH_PASSWORD` are set, all API endpoints re
 
 - **GET `/`**: Check API status, version, Google authentication state, and the details of the last synchronization.
 - **GET `/providers`**: List supported providers.
-- **POST `/auth/token`**: Exchange a Google authorization code for a token. Body: `{ "code": "<code>" }`.
+- **POST `/auth/token`**: Exchange a Google authorization code for a token. Submitted by the dashboard form as `application/x-www-form-urlencoded` (field `code`); redirects back to `/` on success.
 - **POST `/sync`**: Trigger a synchronization process in the background. Returns a 200 status code once the process has been taken over by the server.
   
   **Request Body Example**:

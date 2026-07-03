@@ -67,7 +67,7 @@
           </p>
           {% endif %}
 
-          <form id="auth-form">
+          <form method="post" action="/auth/token">
             <div class="field">
               <label for="auth-code" class="field__label">Authorization code</label>
               <input
@@ -80,7 +80,11 @@
               />
             </div>
             <button type="submit" class="button">Authorize</button>
-            <p id="auth-message" class="form-message"></p>
+            {% if auth_error %}
+            <p class="form-message form-message--error">
+              Invalid or expired authorization code. Please try again.
+            </p>
+            {% endif %}
           </form>
         </div>
         {% endif %}
@@ -178,39 +182,5 @@
       </form>
       {% endif %}
     </footer>
-
-    <script>
-      const authForm = document.getElementById("auth-form");
-      if (authForm) {
-        authForm.addEventListener("submit", async (event) => {
-          event.preventDefault();
-          const message = document.getElementById("auth-message");
-          const code = document.getElementById("auth-code").value.trim();
-          message.className = "form-message";
-          message.textContent = "Authorizing...";
-          try {
-            const response = await fetch("/auth/token", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ code }),
-            });
-            if (response.status === 401) {
-              window.location.href = "/login";
-              return;
-            }
-            if (response.ok) {
-              window.location.reload();
-              return;
-            }
-            const data = await response.json().catch(() => ({}));
-            message.className = "form-message form-message--error";
-            message.textContent = data.detail || "Authentication failed.";
-          } catch (error) {
-            message.className = "form-message form-message--error";
-            message.textContent = "Network error. Please try again.";
-          }
-        });
-      }
-    </script>
   </body>
 </html>

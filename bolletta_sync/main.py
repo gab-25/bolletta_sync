@@ -164,7 +164,7 @@ class SyncResponse(BaseModel):
 
 
 @app.get("/", dependencies=[Depends(get_basic_auth)])
-async def root(request: Request):
+async def root(request: Request, auth_error: bool = False):
     """
     Return the API status and version.
     """
@@ -203,6 +203,7 @@ async def root(request: Request):
                 "last_sync": last_sync,
                 "version": app.version,
                 "security_enabled": security_enabled,
+                "auth_error": auth_error,
             },
         )
 
@@ -251,23 +252,20 @@ async def logout():
 
 
 
-class TokenRequest(BaseModel):
-    code: str
-
-
 @app.post("/auth/token", dependencies=[Depends(get_basic_auth)])
-async def auth_token(body: TokenRequest):
+async def auth_token(code: str = Form(...)):
     """
-    Exchanges the authorization code for tokens and saves them.
+    Exchanges the authorization code for tokens, saves them, and redirects
+    back to the dashboard.
     The code is the value of the 'code' query parameter from the redirect URL
     (http://localhost/?code=...) after authorizing on Google.
     """
     try:
         flow = get_google_flow()
-        flow.fetch_token(code=body.code)
+        flow.fetch_token(code=code)
     except Exception as e:
         logger.error(f"Failed to exchange auth code: {e}")
-        raise HTTPException(status_code=400, detail="Invalid or expired authorization code")
+        return RedirectResponse(url="/?auth_error=1", status_code=303)
 
     credentials = flow.credentials
     with open(google_token_file, "w") as token:
@@ -275,7 +273,7 @@ async def auth_token(body: TokenRequest):
 
     logger.info("Google credentials successfully obtained and saved")
 
-    return {"message": "Authentication successful! You can now use the /sync endpoint."}
+    return RedirectResponse(url="/", status_code=303)
 
 
 @app.get("/providers", dependencies=[Depends(get_basic_auth)])
