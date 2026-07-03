@@ -16,8 +16,7 @@ Bolletta Sync is a Python-based web service designed to automate the synchroniza
 - **Google Drive Integration**: Automatically uploads invoice PDFs to Google Drive, organized by year and provider (e.g., `bollette/2025/fastweb/...`).
 - **Google Tasks Integration**: Creates tasks for invoice payment deadlines with the due date and amount.
 - **REST API**: Simple FastAPI interface to trigger synchronization and check status.
-- **Automated Scheduling**: Automatically runs the sync process based on a configurable schedule (requires the application to be running and authenticated).
-- **Sync Persistence**: Saves the result of every synchronization (manual or scheduled) to `data/last_sync.json` for easy auditing and status tracking.
+- **Sync Persistence**: Saves the result of every synchronization to `data/last_sync.json` for easy auditing and status tracking.
 
 ## Prerequisites
 
@@ -76,8 +75,7 @@ DEV_MODE=false
 BASIC_AUTH_USERNAME=your_username
 BASIC_AUTH_PASSWORD=your_password
 
-# Schedule (Optional)
-SYNC_SCHEDULE="0 0 * * *"  # Crontab expression for automated sync
+# Sync (Optional)
 SYNC_DAYS_OFFSET=10        # Optional: Number of days to look back (default: 10)
 ```
 
@@ -112,11 +110,17 @@ Before running a sync, you must authorize the application with Google:
 5. Paste the code into the form on the dashboard and click **Authorize**.
 6. A `google_token.json` file will be saved in the `data/` folder for future sessions.
 
-### Automated Scheduling
+### Scheduling
 
-The application includes a built-in scheduler. Once the server is started and you have completed the [Authentication Flow](#authentication-flow), the synchronization process will automatically run according to the schedule defined in the `.env` file (variable `SYNC_SCHEDULE`).
+Bolletta Sync no longer ships a built-in scheduler. To run the synchronization on a recurring basis, use an external scheduler (e.g. a system `cron` job, a container orchestrator, or a CI pipeline) that calls the `POST /sync` endpoint.
 
-It will attempt to sync all providers for the last `SYNC_DAYS_OFFSET` days (defaults to 10). Logs will indicate the progress of these scheduled tasks.
+Example crontab entry that triggers a daily sync at midnight:
+
+```bash
+0 0 * * * curl -s -u "$BASIC_AUTH_USERNAME:$BASIC_AUTH_PASSWORD" -X POST http://localhost:8000/sync -H "Content-Type: application/json" -d '{}'
+```
+
+With an empty body, all providers are synced for the last `SYNC_DAYS_OFFSET` days (defaults to 10).
 
 ### API Endpoints
 
