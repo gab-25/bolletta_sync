@@ -17,8 +17,6 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, model_validator
 from dotenv import load_dotenv
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
 from bolletta_sync.sync import (
     Provider,
     Sync,
@@ -48,8 +46,6 @@ if BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD:
     ).hexdigest()
 
 http_basic = HTTPBasic(auto_error=False)
-
-SYNC_SCHEDULE = os.getenv("SYNC_SCHEDULE")
 
 try:
     SYNC_DAYS_OFFSET = int(os.getenv("SYNC_DAYS_OFFSET", "10"))
@@ -82,32 +78,6 @@ async def get_basic_auth(
     raise HTTPException(status_code=401, detail="Not authenticated")
 
 
-async def scheduled_sync(app: FastAPI):
-    """
-    Run the sync process for all providers.
-    """
-    logger.info("Starting scheduled sync...")
-    google_credentials = await get_google_credentials()
-
-    if not google_credentials:
-        logger.error("Scheduled sync failed: Not authenticated with Google")
-        return
-
-    # Use today - SYNC_DAYS_OFFSET as default range
-    start_date = date.today() - timedelta(days=SYNC_DAYS_OFFSET)
-    end_date = date.today()
-
-    try:
-        await Sync(
-            google_credentials=google_credentials,
-            providers=list(Provider),
-            date_range=(start_date, end_date),
-        ).run(headless=not DEV_MODE)
-        logger.info("Scheduled sync completed successfully")
-    except Exception as e:
-        logger.error(f"Scheduled sync failed: {e}")
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # noqa: D103
     # Perform Google authentication check on startup
@@ -121,29 +91,7 @@ async def lifespan(app: FastAPI):  # noqa: D103
     if not BASIC_AUTH_USERNAME or not BASIC_AUTH_PASSWORD:
         logger.warning("BASIC_AUTH_USERNAME/BASIC_AUTH_PASSWORD not set. Security is disabled.")
 
-    # Setup Scheduler
-    scheduler = None
-    if SYNC_SCHEDULE:
-        scheduler = AsyncIOScheduler()
-        trigger = CronTrigger.from_crontab(SYNC_SCHEDULE)
-        scheduler.add_job(
-            scheduled_sync,
-            trigger,
-            args=[app],
-            id="job_sync",
-            name=f"Job sync (schedule: {SYNC_SCHEDULE})",
-            replace_existing=True,
-        )
-        scheduler.start()
-        logger.info(f"Scheduler started with schedule: {SYNC_SCHEDULE}")
-    else:
-        logger.warning("SYNC_SCHEDULE not set in environment variables. Scheduler not started.")
-
     yield
-
-    if scheduler:
-        scheduler.shutdown()
-        logger.info("Scheduler shut down")
 
 
 try:
@@ -162,8 +110,7 @@ app = FastAPI(
 @app.exception_handler(401)
 async def auth_exception_handler(request: Request, exc: HTTPException):
     is_html = "text/html" in request.headers.get("accept", "")
-    is_htmx = "hx-request" in request.headers
-    if is_html and not is_htmx:
+    if is_html:
         return RedirectResponse(url="/login")
     return JSONResponse(status_code=401, content={"detail": exc.detail})
 
@@ -217,7 +164,7 @@ class SyncResponse(BaseModel):
 
 
 @app.get("/", dependencies=[Depends(get_basic_auth)])
-async def root(request: Request):
+async def root(request: Request, auth_error: bool = False):
     """
     Return the API status and version.
     """
@@ -246,24 +193,17 @@ async def root(request: Request):
     accept = request.headers.get("accept", "")
     security_enabled = bool(BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD)
 
-    if "text/html" in accept and "hx-request" not in request.headers:
+    if "text/html" in accept:
         return templates.TemplateResponse(
             request,
             "index.html",
-            {"version": app.version, "security_enabled": security_enabled},
-        )
-
-    # Handle HTMX fragment requests
-    if "hx-request" in request.headers:
-        return templates.TemplateResponse(
-            request,
-            "status_fragment.html",
             {
                 "authenticated": authenticated,
                 "auth_url": auth_url,
                 "last_sync": last_sync,
                 "version": app.version,
                 "security_enabled": security_enabled,
+                "auth_error": auth_error,
             },
         )
 
@@ -312,23 +252,20 @@ async def logout():
 
 
 
-class TokenRequest(BaseModel):
-    code: str
-
-
 @app.post("/auth/token", dependencies=[Depends(get_basic_auth)])
-async def auth_token(request: Request, body: TokenRequest):
+async def auth_token(code: str = Form(...)):
     """
-    Exchanges the authorization code for tokens and saves them.
+    Exchanges the authorization code for tokens, saves them, and redirects
+    back to the dashboard.
     The code is the value of the 'code' query parameter from the redirect URL
     (http://localhost/?code=...) after authorizing on Google.
     """
     try:
         flow = get_google_flow()
-        flow.fetch_token(code=body.code)
+        flow.fetch_token(code=code)
     except Exception as e:
         logger.error(f"Failed to exchange auth code: {e}")
-        raise HTTPException(status_code=400, detail="Invalid or expired authorization code")
+        return RedirectResponse(url="/?auth_error=1", status_code=303)
 
     credentials = flow.credentials
     with open(google_token_file, "w") as token:
@@ -336,13 +273,7 @@ async def auth_token(request: Request, body: TokenRequest):
 
     logger.info("Google credentials successfully obtained and saved")
 
-    if "hx-request" in request.headers:
-        return JSONResponse(
-            content={"message": "Authentication successful!"},
-            headers={"HX-Refresh": "true"},
-        )
-
-    return {"message": "Authentication successful! You can now use the /sync endpoint."}
+    return RedirectResponse(url="/", status_code=303)
 
 
 @app.get("/providers", dependencies=[Depends(get_basic_auth)])

@@ -5,73 +5,180 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bolletta Sync Dashboard</title>
     <link rel="icon" href="/static/logo.png" />
-    <script src="https://unpkg.com/htmx.org@2.0.0"></script>
-    <script src="https://unpkg.com/htmx-ext-json-enc@2.0.0"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    {% if security_enabled %}
-    <script>
-      document.addEventListener("htmx:responseError", (event) => {
-        if (event.detail.xhr.status === 401) {
-          window.location.href = "/login";
-        }
-      });
-    </script>
-    {% endif %}
-    <style>
-      .htmx-indicator {
-        display: none;
-      }
-      .htmx-request .htmx-indicator {
-        display: inline-block;
-      }
-      .htmx-request.htmx-indicator {
-        display: inline-block;
-      }
-    </style>
+    <link rel="stylesheet" href="/static/styles.css" />
   </head>
-  <body class="bg-gray-100 min-h-screen font-sans">
-    <nav class="bg-blue-600 p-4 text-white shadow-lg">
-      <div class="container mx-auto flex justify-between items-center">
-        <div class="flex items-center space-x-3">
-          <img
-            src="/static/logo.png"
-            alt="Logo"
-            class="h-10 w-10 rounded-lg shadow-md bg-white border border-blue-400"
-          />
-          <h1 class="text-2xl font-bold">Bolletta Sync</h1>
-        </div>
-        <div id="status-badge">
-          <!-- Status will be loaded here -->
-        </div>
+  <body>
+    <nav class="navbar">
+      <div class="navbar__inner">
+        <img src="/static/logo.png" alt="Logo" class="navbar__logo" />
+        <h1 class="navbar__title">Bolletta Sync</h1>
       </div>
     </nav>
 
-    <main class="container mx-auto mt-8 px-4 max-w-4xl">
-      <!-- Status Column -->
-      <div
-        class="bg-white rounded-lg shadow-md p-6"
-        hx-get="/"
-        hx-trigger="load"
-        hx-swap="innerHTML"
-      >
-        <div class="flex items-center justify-center p-4">
-          <div
-            class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"
-          ></div>
-          <span class="ml-2 text-gray-600"
-            >Loading status and syncs...</span
-          >
+    <main class="container">
+      <div class="card">
+        <!-- Header Status Section -->
+        <div class="status-header">
+          <div class="status-indicator">
+            <span
+              class="status-dot {% if authenticated %}status-dot--ok{% else %}status-dot--ko{% endif %}"
+            ></span>
+            <div>
+              <p class="status-label">Google Authentication</p>
+              <p
+                class="status-sub {% if authenticated %}status-sub--ok{% else %}status-sub--ko{% endif %}"
+              >
+                {% if authenticated %}Active Session / Connected{% else %}Action
+                Required / Disconnected{% endif %}
+              </p>
+            </div>
+          </div>
+          <div class="status-version">
+            <p class="status-version__label">System Version</p>
+            <p class="status-version__value">{{ version }}</p>
+          </div>
         </div>
+
+        <!-- Google Auth Section (only when not authenticated) -->
+        {% if not authenticated %}
+        <div class="alert">
+          <p class="alert__title">Google authentication required</p>
+          <p class="alert__text">
+            Open the link below, authorize the app, then paste the code from the
+            redirect URL (<code class="code">http://localhost/?code=…</code>).
+          </p>
+
+          {% if auth_url %}
+          <div class="field">
+            <span class="field__label">Authorization URL</span>
+            <a
+              href="{{ auth_url }}"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="field__link"
+            >
+              {{ auth_url }}
+            </a>
+          </div>
+          {% else %}
+          <p class="status-sub--ko">
+            Unable to generate authorization URL. Check that
+            <code class="code">google_credentials.json</code> exists.
+          </p>
+          {% endif %}
+
+          <form method="post" action="/auth/token">
+            <div class="field">
+              <label for="auth-code" class="field__label">Authorization code</label>
+              <input
+                id="auth-code"
+                name="code"
+                type="text"
+                required
+                placeholder="Paste the code here..."
+                class="input"
+              />
+            </div>
+            <button type="submit" class="button">Authorize</button>
+            {% if auth_error %}
+            <p class="form-message form-message--error">
+              Invalid or expired authorization code. Please try again.
+            </p>
+            {% endif %}
+          </form>
+        </div>
+        {% endif %}
+
+        <!-- Sync Details Section -->
+        <div class="section-header">
+          <h3 class="section-title">Last Sync</h3>
+          {% if last_sync %}
+          <span
+            class="badge {% if last_sync.status == 'success' %}badge--success{% else %}badge--danger{% endif %}"
+          >
+            {{ last_sync.status | upper }}
+          </span>
+          {% endif %}
+        </div>
+
+        {% if last_sync %}
+        <div class="meta-box">
+          <p class="meta-box__label">Run Date</p>
+          <p class="meta-box__value">{{ last_sync.date }}</p>
+        </div>
+
+        {% if last_sync.results %}
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Provider</th>
+                <th class="center">Invoices</th>
+                <th class="center">Attempts</th>
+                <th class="right">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for provider, data in last_sync.results.items() %}
+              <tr>
+                <td class="provider">{{ provider | replace('_', ' ') }}</td>
+                <td class="center">
+                  <span class="badge badge--info">{{ data.count | default('-') }}</span>
+                </td>
+                <td class="center">
+                  <span
+                    class="badge {% if data.attempts is defined and data.attempts > 1 %}badge--warning{% else %}badge--muted{% endif %}"
+                  >
+                    {{ data.attempts | default('-') }}
+                  </span>
+                </td>
+                <td class="right">
+                  <span
+                    class="badge {% if data.status == 'success' %}badge--success{% else %}badge--danger{% endif %}"
+                  >
+                    {% if data.status == 'success' %}OK{% else %}ERROR{% endif %}
+                  </span>
+                </td>
+              </tr>
+              {% if data.invoices %}
+              <tr class="row-docs">
+                <td colspan="4">
+                  <div class="doc-list__label">Detected documents:</div>
+                  <div class="doc-list__items">
+                    {% for inv in data.invoices %}
+                    <span class="doc-chip">{{ inv }}</span>
+                    {% endfor %}
+                  </div>
+                </td>
+              </tr>
+              {% endif %} {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+
+        <!-- Raw Data Fallback (Collapsible) -->
+        <div class="raw">
+          <details>
+            <summary>Show raw JSON data</summary>
+            <pre>{{ last_sync | tojson(indent=2) }}</pre>
+          </details>
+        </div>
+
+        {% else %}
+        <div class="empty">
+          <p class="empty__title">No activity recorded</p>
+          <p class="empty__sub">Data will appear after the first sync</p>
+        </div>
+        {% endif %}
       </div>
     </main>
 
-    <footer
-      class="container mx-auto mt-12 pb-8 text-center text-gray-500 text-sm"
-    >
-      <div class="mb-2">Bolletta Sync</div>
+    <footer class="footer">
+      <div>Bolletta Sync</div>
       {% if security_enabled %}
-      <form method="post" action="/logout" style="display:inline">
-        <button type="submit" class="text-xs text-blue-500 hover:underline">Sign out</button>
+      <form method="post" action="/logout" style="display: inline">
+        <button type="submit" class="footer__link">Sign out</button>
       </form>
       {% endif %}
     </footer>
