@@ -15,6 +15,7 @@ from bolletta_sync.providers.base_provider import Invoice
 from bolletta_sync.providers.eni import Eni
 from bolletta_sync.providers.fastweb import Fastweb
 from bolletta_sync.providers.fastweb_energia import FastwebEnergia
+from bolletta_sync.providers.fastweb_gas import FastwebGas
 from bolletta_sync.providers.umbra_acque import UmbraAcque
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ class Provider(Enum):
 
     FASTWEB = "fastweb"
     FASTEWEB_ENERGIA = "fastweb_energia"
+    FASTWEB_GAS = "fastweb_gas"
     ENI = "eni"
     UMBRA_ACQUE = "umbra_acque"
 
@@ -115,6 +117,8 @@ class Sync:
             instance = Fastweb(self._google_credentials, page)
         elif provider == Provider.FASTEWEB_ENERGIA:
             instance = FastwebEnergia(self._google_credentials, page)
+        elif provider == Provider.FASTWEB_GAS:
+            instance = FastwebGas(self._google_credentials, page)
         elif provider == Provider.ENI:
             instance = Eni(self._google_credentials, page)
         elif provider == Provider.UMBRA_ACQUE:
