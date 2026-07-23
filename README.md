@@ -60,7 +60,7 @@ FASTWEB_CLIENT_CODE=code1,code2  # Comma-separated if multiple
 # Fastweb Energia (electricity and gas)
 FASTWEB_ENERGIA_USERNAME=your_username
 FASTWEB_ENERGIA_PASSWORD=your_password
-FASTWEB_ENERGIA_SUPPLY_CODE=luce_code,gas_code  # Optional: comma-separated supply codes (e.g. electricity and gas)
+FASTWEB_ENERGIA_SUPPLY_CODE=IT001E41710296,01611300111309  # Optional: comma-separated POD (electricity) / PDR (gas) codes
 
 # Eni Plenitude
 ENI_USERNAME=your_email

@@ -41,11 +41,15 @@ class FastwebEnergia(BaseProvider):
         )
 
         try:
-            # TODO verificare selettori in DEV_MODE: testo/elemento della fornitura
-            # e pulsante di conferma sulla pagina scelta-fornitura.
+            # supply_code is the POD (electricity) / PDR (gas) shown in each supply
+            # row (e.g. "Fornitura: GAS 1 - PDR: 01611300111309"). Clicking the row
+            # text selects its radio; confirm with the "AVANTI" button.
             await self.page.get_by_text(supply_code).click()
+            avanti = self.page.get_by_role("button", name="Avanti").or_(
+                self.page.get_by_role("link", name="Avanti")
+            )
             async with self.page.expect_navigation():
-                await self.page.get_by_role("link", name="Avanti").click()
+                await avanti.first.click()
         except Exception:
             raise Exception(f"invalid supply code: {supply_code}")
 
