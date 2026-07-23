@@ -41,15 +41,10 @@ class FastwebEnergia(BaseProvider):
         )
 
         try:
-            # supply_code is the POD (electricity) / PDR (gas) shown in each supply
-            # row (e.g. "Fornitura: GAS 1 - PDR: 01611300111309"). Clicking the row
-            # text selects its radio; confirm with the "AVANTI" button.
-            await self.page.get_by_text(supply_code).click()
-            avanti = self.page.get_by_role("button", name="Avanti").or_(
-                self.page.get_by_role("link", name="Avanti")
-            )
+            await self.page.get_by_text(supply_code, exact=True).click()
+            avanti = self.page.get_by_role("link", name="Avanti")
             async with self.page.expect_navigation():
-                await avanti.first.click()
+                await avanti.click()
         except Exception:
             raise Exception(f"invalid supply code: {supply_code}")
 
@@ -84,7 +79,10 @@ class FastwebEnergia(BaseProvider):
                 )
             )
             invoice_list_filtered = list(
-                filter(lambda invoice: start_date <= invoice.doc_date <= end_date, invoice_list)
+                filter(
+                    lambda invoice: start_date <= invoice.doc_date <= end_date,
+                    invoice_list,
+                )
             )
             if invoice_list_filtered:
                 invoices.extend(invoice_list_filtered)
