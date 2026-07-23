@@ -10,7 +10,7 @@ Bolletta Sync is a Python-based web service designed to automate the synchroniza
 
 - **Multi-Provider Support**: Automatically fetch invoices from:
   - Fastweb (Fixed line)
-  - Fastweb Energia
+  - Fastweb Energia (electricity and gas)
   - Eni Plenitude (with CAPSolver integration for ReCaptcha)
   - Umbra Acque
 - **Google Drive Integration**: Automatically uploads invoice PDFs to Google Drive, organized by year and provider (e.g., `bollette/2025/fastweb/...`).
@@ -57,9 +57,10 @@ FASTWEB_USERNAME=your_username
 FASTWEB_PASSWORD=your_password
 FASTWEB_CLIENT_CODE=code1,code2  # Comma-separated if multiple
 
-# Fastweb Energia
+# Fastweb Energia (electricity and gas)
 FASTWEB_ENERGIA_USERNAME=your_username
 FASTWEB_ENERGIA_PASSWORD=your_password
+FASTWEB_ENERGIA_SUPPLY_CODE=pod_code,pdr_code  # Optional: comma-separated POD (electricity) / PDR (gas) codes
 
 # Eni Plenitude
 ENI_USERNAME=your_email
@@ -131,7 +132,7 @@ If `BASIC_AUTH_USERNAME` and `BASIC_AUTH_PASSWORD` are set, all API endpoints re
 - **GET `/providers`**: List supported providers.
 - **POST `/auth/token`**: Exchange a Google authorization code for a token. Submitted by the dashboard form as `application/x-www-form-urlencoded` (field `code`); redirects back to `/` on success.
 - **POST `/sync`**: Trigger a synchronization process in the background. Returns a 200 status code once the process has been taken over by the server.
-  
+
   **Request Body Example**:
   ```json
   {
