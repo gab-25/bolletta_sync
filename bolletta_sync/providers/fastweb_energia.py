@@ -42,11 +42,11 @@ class FastwebEnergia(BaseProvider):
 
         try:
             await self.page.get_by_text(supply_code, exact=True).click()
-            avanti = self.page.get_by_role("link", name="Avanti")
+            accedi = self.page.get_by_role("link", name="Accedi")
             async with self.page.expect_navigation():
-                await avanti.click()
-        except Exception:
-            raise Exception(f"invalid supply code: {supply_code}")
+                await accedi.click()
+        except Exception as e:
+            raise Exception(f"invalid supply code: {supply_code} ({e})") from e
 
     async def get_invoices(self, start_date: date, end_date: date) -> list[Invoice]:
         invoices: list[Invoice] = []
