@@ -26,6 +26,22 @@ google_token_file = "./data/google_token.json"
 last_sync_file = "./data/last_sync.json"
 
 
+def read_last_sync() -> Dict[str, Any]:
+    """
+    Loads the last sync report from the data folder.
+    Returns an empty dict if the file is missing or unreadable.
+    """
+    if not os.path.exists(last_sync_file):
+        return {}
+
+    try:
+        with open(last_sync_file, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Failed to read last sync file: {e}")
+        return {}
+
+
 class Provider(Enum):
     """Provider enum."""
 
@@ -162,6 +178,36 @@ class Sync:
         finally:
             await page.close()
 
+    def _save_last_sync(self, results: Dict[str, Any]) -> None:
+        """
+        Persist the run results, merged with the previous report so that providers
+        not included in this run (e.g. a retry limited to the failed ones) stay visible.
+        """
+        try:
+            merged_results = {**read_last_sync().get("results", {}), **results}
+
+            # Overall status is success only if all individual results are success
+            overall_status = "success"
+            if not merged_results:
+                overall_status = "empty"
+            elif any(res.get("status") == "error" for res in merged_results.values()):
+                overall_status = "error"
+
+            with open(last_sync_file, "w") as f:
+                json.dump(
+                    {
+                        "date": datetime.now().isoformat(),
+                        "start_date": self._date_range[0].isoformat(),
+                        "end_date": self._date_range[1].isoformat(),
+                        "status": overall_status,
+                        "results": merged_results,
+                    },
+                    f,
+                    indent=4,
+                )
+        except Exception as e:
+            logger.error(f"Failed to save last sync result: {e}")
+
     async def run(self, headless: bool = True) -> Dict[str, Any]:
         """Run syncs invoices for the given providers and returns a summary of the results."""
         results = {}
@@ -178,37 +224,19 @@ class Sync:
                         "status": "success",
                         "count": len(invoices),
                         "attempts": attempts,
+                        "date": datetime.now().isoformat(),
                         "invoices": [invoice.model_dump(mode="json") for invoice in invoices],
                     }
                 except Exception as e:
                     results[provider.value] = {
                         "status": "error",
                         "attempts": self._max_retries + 1,
+                        "date": datetime.now().isoformat(),
                         "error": str(e),
                     }
 
             await browser.close()
 
-        # Persist result to data folder
-        try:
-            # Overall status is success only if all individual results are success
-            overall_status = "success"
-            if not results:
-                overall_status = "empty"
-            elif any(res.get("status") == "error" for res in results.values()):
-                overall_status = "error"
-
-            with open(last_sync_file, "w") as f:
-                json.dump(
-                    {
-                        "date": datetime.now().isoformat(),
-                        "status": overall_status,
-                        "results": results,
-                    },
-                    f,
-                    indent=4,
-                )
-        except Exception as e:
-            logger.error(f"Failed to save last sync result: {e}")
+        self._save_last_sync(results)
 
         return results

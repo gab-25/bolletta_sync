@@ -17,6 +17,7 @@ Bolletta Sync is a Python-based web service designed to automate the synchroniza
 - **Google Tasks Integration**: Creates tasks for invoice payment deadlines with the due date and amount.
 - **REST API**: Simple FastAPI interface to trigger synchronization and check status.
 - **Sync Persistence**: Saves the result of every synchronization to `data/last_sync.json` for easy auditing and status tracking.
+- **Retry from the Dashboard**: When a provider fails, a **Retry failed** button on the dashboard re-runs the sync for the failed providers only, over the same date range.
 
 ## Prerequisites
 
@@ -128,10 +129,10 @@ With an empty body, all providers are synced for the last `SYNC_DAYS_OFFSET` day
 
 If `BASIC_AUTH_USERNAME` and `BASIC_AUTH_PASSWORD` are set, all API endpoints require authentication via session cookie (browser) or HTTP Basic Auth (API clients / Swagger).
 
-- **GET `/`**: Check API status, version, Google authentication state, and the details of the last synchronization.
+- **GET `/`**: Check API status, version, Google authentication state, whether a sync is currently running (`sync_in_progress`), and the details of the last synchronization.
 - **GET `/providers`**: List supported providers.
 - **POST `/auth/token`**: Exchange a Google authorization code for a token. Submitted by the dashboard form as `application/x-www-form-urlencoded` (field `code`); redirects back to `/` on success.
-- **POST `/sync`**: Trigger a synchronization process in the background. Returns a 200 status code once the process has been taken over by the server.
+- **POST `/sync`**: Trigger a synchronization process in the background. Returns a 200 status code once the process has been taken over by the server, or **409** if a sync is already running — only one sync may run at a time.
 
   **Request Body Example**:
   ```json
@@ -142,6 +143,25 @@ If `BASIC_AUTH_USERNAME` and `BASIC_AUTH_PASSWORD` are set, all API endpoints re
   }
   ```
   *If `providers` is omitted, all providers will be synced. `start_date` defaults to `SYNC_DAYS_OFFSET` days ago (default 10), and `end_date` defaults to today.*
+
+### Retrying a Failed Sync
+
+When the last run reports at least one provider in error, the dashboard shows a **Retry failed** button next to the sync status. It re-runs the sync for the failed providers only, reusing the date range of the previous run, and reloads the page automatically until the sync finishes.
+
+The report in `data/last_sync.json` is **merged** with the previous one instead of being replaced, so providers that are not part of a retry keep their last known result. Each provider entry carries its own `date`, and the top-level `start_date` / `end_date` record the range of the most recent run:
+
+```json
+{
+  "date": "2025-01-10T09:15:00.000000",
+  "start_date": "2024-12-31",
+  "end_date": "2025-01-10",
+  "status": "error",
+  "results": {
+    "fastweb": { "status": "success", "count": 1, "attempts": 1, "date": "2025-01-10T09:02:00.000000", "invoices": [] },
+    "eni": { "status": "error", "attempts": 4, "date": "2025-01-10T09:15:00.000000", "error": "..." }
+  }
+}
+```
 
 ## Project Structure
 
