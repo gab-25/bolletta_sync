@@ -1,13 +1,12 @@
 import hashlib
 import hmac
-import json
 import logging
 import os
 import secrets
 import importlib.metadata
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
-from typing import Any, List, Optional
+from typing import List, Optional, Tuple
 
 from fastapi import FastAPI, Form, Request, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -23,7 +22,7 @@ from bolletta_sync.sync import (
     get_google_credentials,
     get_google_flow,
     google_token_file,
-    last_sync_file,
+    read_last_sync,
 )
 
 load_dotenv()
@@ -164,7 +163,12 @@ class SyncResponse(BaseModel):
 
 
 @app.get("/", dependencies=[Depends(get_basic_auth)])
-async def root(request: Request, auth_error: bool = False):
+async def root(
+    request: Request,
+    auth_error: bool = False,
+    sync_started: bool = False,
+    sync_busy: bool = False,
+):
     """
     Return the API status and version.
     """
@@ -181,13 +185,7 @@ async def root(request: Request, auth_error: bool = False):
         except Exception as e:
             logger.warning(f"Could not generate auth URL: {e}")
 
-    last_sync = None
-    if os.path.exists(last_sync_file):
-        try:
-            with open(last_sync_file, "r") as f:
-                last_sync = json.load(f)
-        except Exception as e:
-            logger.error(f"Failed to read last sync file: {e}")
+    last_sync = read_last_sync() or None
 
     # Handle HTML requests for the UI
     accept = request.headers.get("accept", "")
@@ -204,6 +202,9 @@ async def root(request: Request, auth_error: bool = False):
                 "version": app.version,
                 "security_enabled": security_enabled,
                 "auth_error": auth_error,
+                "sync_started": sync_started,
+                "sync_busy": sync_busy,
+                "sync_in_progress": is_sync_running(),
             },
         )
 
@@ -211,6 +212,7 @@ async def root(request: Request, auth_error: bool = False):
         "message": "Bolletta Sync API is running",
         "version": app.version,
         "authenticated": authenticated,
+        "sync_in_progress": is_sync_running(),
         "last_sync": last_sync,
     }
 
@@ -284,18 +286,45 @@ async def get_providers():
     return {"providers": [p.value for p in Provider]}
 
 
+# Only one sync may run at a time: Playwright and the provider logins are not reentrant.
+_sync_running = False
+
+
+def is_sync_running() -> bool:
+    """Return True while a sync is running."""
+    return _sync_running
+
+
+def try_start_sync() -> bool:
+    """
+    Claim the sync slot. Returns False if a sync is already running.
+    There is no await between the check and the assignment, so this is atomic
+    on the asyncio event loop.
+    """
+    global _sync_running
+    if _sync_running:
+        return False
+    _sync_running = True
+    return True
+
+
+def _release_sync() -> None:
+    global _sync_running
+    _sync_running = False
+
+
 async def run_sync_task(
     providers: List[Provider],
     start_date: date,
     end_date: date,
 ):
-    """Background task to run the sync process."""
-    google_credentials = await get_google_credentials()
-    if not google_credentials:
-        logger.error("Background sync failed: Not authenticated with Google")
-        return
-
+    """Background task to run the sync process. Releases the sync slot when done."""
     try:
+        google_credentials = await get_google_credentials()
+        if not google_credentials:
+            logger.error("Background sync failed: Not authenticated with Google")
+            return
+
         await Sync(
             google_credentials=google_credentials,
             providers=providers,
@@ -304,6 +333,8 @@ async def run_sync_task(
         logger.info(f"Background sync completed for {len(providers)} providers")
     except Exception as e:
         logger.error(f"Background sync failed: {e}")
+    finally:
+        _release_sync()
 
 
 @app.post("/sync", response_model=SyncResponse, dependencies=[Depends(get_basic_auth)])
@@ -317,6 +348,9 @@ async def trigger_sync(request: SyncRequest, background_tasks: BackgroundTasks):
     if not google_credentials:
         raise HTTPException(status_code=401, detail="Not authenticated with Google. Please visit /auth/login")
 
+    if not try_start_sync():
+        raise HTTPException(status_code=409, detail="A sync is already running")
+
     # Add to background tasks
     background_tasks.add_task(
         run_sync_task,
@@ -329,3 +363,59 @@ async def trigger_sync(request: SyncRequest, background_tasks: BackgroundTasks):
         message=f"Sync process started for {len(request.providers)} providers from {request.start_date} to {request.end_date}",
         status="accepted",
     )
+
+
+def _failed_providers(last_sync: dict) -> List[Provider]:
+    """Return the providers that failed in the given sync report."""
+    providers = []
+    for name, result in last_sync.get("results", {}).items():
+        if result.get("status") != "error":
+            continue
+        try:
+            providers.append(Provider(name))
+        except ValueError:
+            logger.warning(f"Ignoring unknown provider in last sync report: {name}")
+    return providers
+
+
+def _last_sync_date_range(last_sync: dict) -> Tuple[date, date]:
+    """
+    Return the date range of the given sync report, falling back to the same
+    defaults as SyncRequest when the report predates those fields.
+    """
+    try:
+        return (
+            date.fromisoformat(last_sync["start_date"]),
+            date.fromisoformat(last_sync["end_date"]),
+        )
+    except (KeyError, TypeError, ValueError):
+        return date.today() - timedelta(days=SYNC_DAYS_OFFSET), date.today()
+
+
+@app.post("/sync/retry", include_in_schema=False, dependencies=[Depends(get_basic_auth)])
+async def retry_failed_sync(background_tasks: BackgroundTasks):
+    """
+    Re-run the sync for the providers that failed in the last run, over the same
+    date range. Submitted by the dashboard form; always redirects back to /.
+    """
+    last_sync = read_last_sync()
+    providers = _failed_providers(last_sync)
+    if not providers:
+        return RedirectResponse(url="/", status_code=303)
+
+    google_credentials = await get_google_credentials()
+    if not google_credentials:
+        logger.error("Retry rejected: Not authenticated with Google")
+        return RedirectResponse(url="/", status_code=303)
+
+    if not try_start_sync():
+        return RedirectResponse(url="/?sync_busy=1", status_code=303)
+
+    start_date, end_date = _last_sync_date_range(last_sync)
+    background_tasks.add_task(run_sync_task, providers, start_date, end_date)
+
+    logger.info(
+        f"Retry started for {[p.value for p in providers]} from {start_date} to {end_date}"
+    )
+
+    return RedirectResponse(url="/?sync_started=1", status_code=303)

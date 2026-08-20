@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bolletta Sync Dashboard</title>
+    {% if sync_in_progress %}
+    <meta http-equiv="refresh" content="15" />
+    {% endif %}
     <link rel="icon" href="/static/logo.png" />
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
@@ -17,6 +20,18 @@
 
     <main class="container">
       <div class="card">
+        <!-- Sync Feedback Banners -->
+        {% if sync_started %}
+        <div class="notice notice--info">
+          Retry started in the background. This page refreshes automatically while
+          the sync is running.
+        </div>
+        {% elif sync_busy %}
+        <div class="notice notice--warning">
+          A sync is already running. Wait for it to finish before starting another one.
+        </div>
+        {% endif %}
+
         <!-- Header Status Section -->
         <div class="status-header">
           <div class="status-indicator">
@@ -92,19 +107,35 @@
         <!-- Sync Details Section -->
         <div class="section-header">
           <h3 class="section-title">Last Sync</h3>
-          {% if last_sync %}
-          <span
-            class="badge {% if last_sync.status == 'success' %}badge--success{% else %}badge--danger{% endif %}"
-          >
-            {{ last_sync.status | upper }}
-          </span>
-          {% endif %}
+          <div class="section-actions">
+            {% if last_sync %}
+            <span
+              class="badge {% if last_sync.status == 'success' %}badge--success{% else %}badge--danger{% endif %}"
+            >
+              {{ last_sync.status | upper }}
+            </span>
+            {% endif %} {% if sync_in_progress %}
+            <button type="button" class="button button--sm" disabled>
+              Sync in progress…
+            </button>
+            {% elif authenticated and last_sync and last_sync.status == 'error' %}
+            <form method="post" action="/sync/retry">
+              <button type="submit" class="button button--sm">Retry failed</button>
+            </form>
+            {% endif %}
+          </div>
         </div>
 
         {% if last_sync %}
         <div class="meta-box">
-          <p class="meta-box__label">Run Date</p>
+          <p class="meta-box__label">Last Run</p>
           <p class="meta-box__value">{{ last_sync.date }}</p>
+          {% if last_sync.start_date and last_sync.end_date %}
+          <p class="meta-box__label meta-box__label--spaced">Date Range</p>
+          <p class="meta-box__value">
+            {{ last_sync.start_date }} → {{ last_sync.end_date }}
+          </p>
+          {% endif %}
         </div>
 
         {% if last_sync.results %}
@@ -115,6 +146,7 @@
                 <th>Provider</th>
                 <th class="center">Invoices</th>
                 <th class="center">Attempts</th>
+                <th class="center">Last Run</th>
                 <th class="right">Status</th>
               </tr>
             </thead>
@@ -132,6 +164,9 @@
                     {{ data.attempts | default('-') }}
                   </span>
                 </td>
+                <td class="center timestamp">
+                  {{ (data.get('date') or last_sync.date or '')[:19] | replace('T', ' ') }}
+                </td>
                 <td class="right">
                   <span
                     class="badge {% if data.status == 'success' %}badge--success{% else %}badge--danger{% endif %}"
@@ -142,7 +177,7 @@
               </tr>
               {% if data.invoices %}
               <tr class="row-docs">
-                <td colspan="4">
+                <td colspan="5">
                   <div class="doc-list__label">Detected documents:</div>
                   <div class="doc-list__items">
                     {% for inv in data.invoices %}
