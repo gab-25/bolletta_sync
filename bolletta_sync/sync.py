@@ -152,6 +152,12 @@ class Sync:
                     )
                     await asyncio.sleep(wait_seconds)
 
+                    # Start the retry from a clean browser context: cookies, consent banners
+                    # and leftover frames from the failed attempt would otherwise make every
+                    # retry fail the same way.
+                    await instance.page.close()
+                    instance.page = await browser.new_page(locale="en-EN")
+
                 try:
                     logger.info(f"{provider.value} - Fetching invoices (attempt {attempt}/{self._max_retries + 1})")
                     invoices = await instance.get_invoices(self._date_range[0], self._date_range[1])
@@ -176,7 +182,7 @@ class Sync:
             logger.error(f"{provider.value} - Error while syncing: {e}")
             raise e
         finally:
-            await page.close()
+            await instance.page.close()
 
     def _save_last_sync(self, results: Dict[str, Any]) -> None:
         """
