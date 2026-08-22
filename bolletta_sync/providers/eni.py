@@ -8,9 +8,6 @@ from playwright_recaptcha.errors import RecaptchaNotFoundError
 
 from bolletta_sync.providers.base_provider import BaseProvider, Invoice
 
-# The login page is loaded without the trailing slash: eniplenitude.com/my-eni/ answers with a
-# 301 to eniplenitude.com/my-eni, and the redirect makes playwright abort the navigation.
-LOGIN_URL = "https://eniplenitude.com/my-eni"
 # The page keeps loading trackers well past the point where the login form is usable, so the
 # "load" event is unreliable and the default 30s timeout is too tight for the recaptcha widget.
 NAVIGATION_TIMEOUT = 60_000
@@ -23,7 +20,9 @@ class Eni(BaseProvider):
 
     async def _login_eni(self):
         self.page.set_default_timeout(NAVIGATION_TIMEOUT)
-        await self.page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=NAVIGATION_TIMEOUT)
+        await self.page.goto(
+            "https://eniplenitude.com/my-eni", wait_until="domcontentloaded", timeout=NAVIGATION_TIMEOUT
+        )
 
         async with recaptchav2.AsyncSolver(self.page, capsolver_api_key=os.getenv("CAPSOLVER_API_KEY")) as solver:
             # The privacy banner is only shown until the consent cookie is set.
