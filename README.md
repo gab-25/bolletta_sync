@@ -11,7 +11,7 @@ Bolletta Sync is a Python-based web service designed to automate the synchroniza
 - **Multi-Provider Support**: Automatically fetch invoices from:
   - Fastweb (Fixed line)
   - Fastweb Energia (electricity and gas)
-  - Eni Plenitude (with CAPSolver integration for ReCaptcha)
+  - Eni Plenitude (with CAPSolver token solving for ReCaptcha)
   - Umbra Acque
 - **Google Drive Integration**: Automatically uploads invoice PDFs to Google Drive, organized by year and provider (e.g., `bollette/2025/fastweb/...`).
 - **Google Tasks Integration**: Creates tasks for invoice payment deadlines with the due date and amount.
@@ -25,7 +25,7 @@ Bolletta Sync is a Python-based web service designed to automate the synchroniza
 - **[uv](https://docs.astral.sh/uv/)**: used for dependency management and running the app.
 - **Google Cloud Project**: You need a project with the Google Drive API and Google Tasks API enabled.
 - **Google Credentials**: A `google_credentials.json` file (**Desktop application type**) placed in the `data/` folder.
-- **CAPSolver API Key**: Required for solving ReCaptcha on the Eni Plenitude portal.
+- **CAPSolver API Key**: Required to solve the ReCaptcha on the Eni Plenitude login page, which is done with a `ReCaptchaV2TaskProxyLess` task.
 
 ## Installation
 

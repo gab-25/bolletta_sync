@@ -3,13 +3,12 @@ from datetime import date, datetime
 
 import requests
 from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
-from playwright_recaptcha import recaptchav2
-from playwright_recaptcha.errors import RecaptchaNotFoundError
 
+from bolletta_sync.captcha import apply_recaptcha_token, solve_recaptcha_v2
 from bolletta_sync.providers.base_provider import BaseProvider, Invoice
 
 # The page keeps loading trackers well past the point where the login form is usable, so the
-# "load" event is unreliable and the default 30s timeout is too tight for the recaptcha widget.
+# "load" event is unreliable and the default 30s timeout is too tight for it.
 NAVIGATION_TIMEOUT = 60_000
 
 
@@ -24,26 +23,26 @@ class Eni(BaseProvider):
             "https://eniplenitude.com/my-eni", wait_until="domcontentloaded", timeout=NAVIGATION_TIMEOUT
         )
 
-        async with recaptchav2.AsyncSolver(self.page, capsolver_api_key=os.getenv("CAPSOLVER_API_KEY")) as solver:
-            # The privacy banner is only shown until the consent cookie is set.
-            try:
-                await self.page.get_by_role("button", name="Accept proposed privacy").click(timeout=10_000)
-            except PlaywrightTimeoutError:
-                self.logger.info("privacy banner not shown, skipping")
+        # The privacy banner is only shown until the consent cookie is set.
+        try:
+            await self.page.get_by_role("button", name="Accept proposed privacy").click(timeout=10_000)
+        except PlaywrightTimeoutError:
+            self.logger.info("privacy banner not shown, skipping")
 
-            email = self.page.get_by_role("textbox", name="email")
-            await email.wait_for(state="visible")
-            await email.fill(os.getenv("ENI_USERNAME"))  # pyright: ignore[reportArgumentType]
+        email = self.page.get_by_role("textbox", name="email")
+        await email.wait_for(state="visible")
+        await email.fill(os.getenv("ENI_USERNAME"))  # pyright: ignore[reportArgumentType]
 
-            # Eni serves the challenge based on risk, so it is not always there.
-            try:
-                await solver.solve_recaptcha(wait=True, image_challenge=True)
-            except RecaptchaNotFoundError:
-                self.logger.info("no recaptcha challenge, skipping")
+        # Eni serves the widget based on risk, so it is not always there.
+        token = await solve_recaptcha_v2(self.page)
+        if token is None:
+            self.logger.info("no recaptcha widget, skipping")
+        else:
+            await apply_recaptcha_token(self.page, token)
 
-            await self.page.get_by_role("button", name="Prosegui", exact=True).click()
+        await self.page.get_by_role("button", name="Prosegui", exact=True).click()
 
-            await self.page.get_by_role("textbox", name="password").fill(os.getenv("ENI_PASSWORD"))  # pyright: ignore[reportArgumentType]
+        await self.page.get_by_role("textbox", name="password").fill(os.getenv("ENI_PASSWORD"))  # pyright: ignore[reportArgumentType]
 
         async with self.page.expect_navigation(wait_until="domcontentloaded", timeout=NAVIGATION_TIMEOUT):
             await self.page.get_by_role("button", name="Accedi").click()
