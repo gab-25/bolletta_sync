@@ -100,10 +100,6 @@ Requests without the right secret are rejected by the script. When you change th
 
 On startup the service pings the web app and logs a warning if it can't be reached or the secret is wrong.
 
-#### Migrating from the Google OAuth setup
-
-Previous versions used an OAuth client in a Google Cloud project. After deploying the script and setting the two variables above, `data/google_credentials.json` and `data/google_token.json` are no longer used and can be deleted. Files and tasks already created are detected, so they won't be duplicated.
-
 ## Usage
 
 ### Start the API Server
