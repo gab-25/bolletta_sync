@@ -5,12 +5,13 @@ import requests
 from bs4 import BeautifulSoup
 from playwright.async_api import Page
 
+from bolletta_sync.apps_script import AppsScriptClient
 from bolletta_sync.providers.base_provider import BaseProvider, Invoice
 
 
 class Fastweb(BaseProvider):
-    def __init__(self, google_credentials, page: Page):
-        super().__init__(google_credentials, page, "fastweb")
+    def __init__(self, apps_script: AppsScriptClient, page: Page):
+        super().__init__(apps_script, page, "fastweb")
         if os.getenv("FASTWEB_CLIENT_CODE") is None:
             raise Exception("FASTWEB_CLIENT_CODE not set")
         self.client_codes = os.getenv("FASTWEB_CLIENT_CODE").split(",")  # pyright: ignore[reportOptionalMemberAccess]

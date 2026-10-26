@@ -5,12 +5,13 @@ from urllib.parse import unquote
 import requests
 from playwright.async_api import Page
 
+from bolletta_sync.apps_script import AppsScriptClient
 from bolletta_sync.providers.base_provider import BaseProvider, Invoice
 
 
 class UmbraAcque(BaseProvider):
-    def __init__(self, google_credentials, page: Page):
-        super().__init__(google_credentials, page, "umbra_acque")
+    def __init__(self, apps_script: AppsScriptClient, page: Page):
+        super().__init__(apps_script, page, "umbra_acque")
 
     async def _login_umbra_acque(self):
         await self.page.goto("https://self-service.umbraacque.com/umbraacque/login/")

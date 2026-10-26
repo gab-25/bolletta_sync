@@ -1,13 +1,12 @@
+import base64
 import logging
 from abc import ABC
 from datetime import date
-from io import BytesIO
-from typing import Any
 
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
 from playwright.async_api import Page
 from pydantic import BaseModel
+
+from bolletta_sync.apps_script import AppsScriptClient
 
 
 class Invoice(BaseModel):
@@ -20,8 +19,8 @@ class Invoice(BaseModel):
 
 
 class BaseProvider(ABC):
-    def __init__(self, google_credentials, page: Page, namespace: str):
-        self._google_credentials = google_credentials
+    def __init__(self, apps_script: AppsScriptClient, page: Page, namespace: str):
+        self._apps_script = apps_script
         self.page = page
         self._namespace = namespace
         self.namespace_folder_id = None
@@ -29,48 +28,21 @@ class BaseProvider(ABC):
 
         self.logger = logging.getLogger(namespace)
 
-        self.drive_service = build("drive", "v3", credentials=self._google_credentials, cache_discovery=False)
-        self.tasks_service = build("tasks", "v1", credentials=self._google_credentials, cache_discovery=False)
-
     async def get_cookies(self) -> dict:
         cookies = {}
         for cookie in await self.page.context.cookies():
             cookies[cookie["name"]] = cookie["value"]  # pyright: ignore[reportTypedDictNotRequiredAccess]
         return cookies
 
-    def _create_folder(self, folder_name: str, parent_folder_id: str | None = None) -> str:
-        query = f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
-        if parent_folder_id:
-            query += f" and '{parent_folder_id}' in parents"
-        results = self.drive_service.files().list(q=query, spaces="drive").execute()
-
-        if results.get("files"):
-            return results.get("files")[0].get("id")
-
-        folder_metadata: dict[str, Any] = {"name": folder_name, "mimeType": "application/vnd.google-apps.folder"}
-        if parent_folder_id:
-            folder_metadata["parents"] = [parent_folder_id]
-        folder = self.drive_service.files().create(body=folder_metadata, fields="id").execute()
-
-        return folder.get("id")
-
     async def check_namespace(self) -> bool:
-        # google drive
-        bollette_folder_id = self._create_folder("bollette")
-        year_folder_id = self._create_folder(str(date.today().year), bollette_folder_id)
-        self.namespace_folder_id = self._create_folder(self._namespace, year_folder_id)
-
-        # google tasks
-        tasklist_name = "Bollette"
-        tasklists = self.tasks_service.tasklists().list().execute()
-        self.namespace_tasklist_id = None
-        for tasklist in tasklists.get("items", []):
-            if tasklist["title"] == tasklist_name:
-                self.namespace_tasklist_id = tasklist["id"]
-                break
-        if not self.namespace_tasklist_id:
-            tasklist = self.tasks_service.tasklists().insert(body={"title": tasklist_name}).execute()
-            self.namespace_tasklist_id = tasklist["id"]
+        result = await self._apps_script.call(
+            "ensure_namespace",
+            namespace=self._namespace,
+            year=date.today().year,
+            tasklist_name="Bollette",
+        )
+        self.namespace_folder_id = result["folder_id"]
+        self.namespace_tasklist_id = result["tasklist_id"]
 
         return True
 
@@ -91,20 +63,17 @@ class BaseProvider(ABC):
         save the invoice to google drive
         """
         file_name = f"{self._namespace}_{invoice.doc_date.strftime('%Y-%m-%d')}_{invoice.id}.pdf"
-        results = (
-            self.drive_service.files()
-            .list(q=f"name='{file_name}' and '{self.namespace_folder_id}' in parents and trashed=false", spaces="drive")
-            .execute()
+        result = await self._apps_script.call(
+            "save_invoice",
+            folder_id=self.namespace_folder_id,
+            file_name=file_name,
+            content=base64.b64encode(invoice_pdf).decode(),
         )
-        if results.get("files"):
+
+        if result["created"]:
+            self.logger.info(f"create file {file_name} in google drive")
+        else:
             self.logger.info(f"file {file_name} already exists in google drive")
-            return True
-
-        file_metadata = {"name": file_name, "parents": [self.namespace_folder_id]}
-        media = MediaIoBaseUpload(BytesIO(invoice_pdf), mimetype="application/pdf")
-        file = self.drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
-
-        self.logger.info(f"create file {file_name} in google drive")
 
         return True
 
@@ -112,24 +81,17 @@ class BaseProvider(ABC):
         """
         set expire invoice to google tasks
         """
-        task_title = f"Pagare {self._namespace} fattura {invoice.id}"
-        tasks = (
-            self.tasks_service.tasks()
-            .list(tasklist=self.namespace_tasklist_id, showCompleted=True, showHidden=True)
-            .execute()
+        result = await self._apps_script.call(
+            "set_expire_invoice",
+            tasklist_id=self.namespace_tasklist_id,
+            title=f"Pagare {self._namespace} fattura {invoice.id}",
+            due=invoice.due_date.strftime("%Y-%m-%dT00:00:00Z"),
+            notes=f"Totale: {invoice.amount}",
         )
-        for task in tasks.get("items", []):
-            if task["title"] == task_title:
-                self.logger.info(f"task for invoice {invoice.id} already exists")
-                return True
 
-        task_metadata = {
-            "title": task_title,
-            "due": invoice.due_date.strftime("%Y-%m-%dT00:00:00Z"),
-            "notes": f"Totale: {invoice.amount}",
-        }
-        task = self.tasks_service.tasks().insert(tasklist=self.namespace_tasklist_id, body=task_metadata).execute()
-
-        self.logger.info(f"created task for invoice {invoice.id}")
+        if result["created"]:
+            self.logger.info(f"created task for invoice {invoice.id}")
+        else:
+            self.logger.info(f"task for invoice {invoice.id} already exists")
 
         return True

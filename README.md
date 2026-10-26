@@ -4,7 +4,7 @@
 
 # Bolletta Sync
 
-Bolletta Sync is a Python-based web service designed to automate the synchronization of utility invoices from various Italian providers to Google Drive and Google Tasks. It uses Playwright for web scraping and the Google API for cloud integration.
+Bolletta Sync is a Python-based web service designed to automate the synchronization of utility invoices from various Italian providers to Google Drive and Google Tasks. It uses Playwright for web scraping and a Google Apps Script web app to write to Google Drive and Google Tasks.
 
 ## Features
 
@@ -23,8 +23,7 @@ Bolletta Sync is a Python-based web service designed to automate the synchroniza
 
 - **Python 3.13** or higher.
 - **[uv](https://docs.astral.sh/uv/)**: used for dependency management and running the app.
-- **Google Cloud Project**: You need a project with the Google Drive API and Google Tasks API enabled.
-- **Google Credentials**: A `google_credentials.json` file (**Desktop application type**) placed in the `data/` folder.
+- **Google account**: The Apps Script web app in `apps_script/` deployed on the account that owns the Drive and Tasks data (see [Google Apps Script Setup](#google-apps-script-setup)). No Google Cloud project or OAuth client is required.
 - **CAPSolver API Key**: Required to solve the ReCaptcha on the Eni Plenitude login page, which is done with a `ReCaptchaV2TaskProxyLess` task.
 
 ## Installation
@@ -52,6 +51,10 @@ The application uses environment variables for configuration. Create a `.env` fi
 ```env
 # General
 CAPSOLVER_API_KEY=your_capsolver_key
+
+# Google Apps Script web app
+APPS_SCRIPT_URL=https://script.google.com/macros/s/<deployment-id>/exec
+APPS_SCRIPT_SECRET=your_shared_secret
 
 # Fastweb
 FASTWEB_USERNAME=your_username
@@ -82,13 +85,24 @@ BASIC_AUTH_PASSWORD=your_password
 SYNC_DAYS_OFFSET=10        # Optional: Number of days to look back (default: 10)
 ```
 
-### Google OAuth2 Setup
+### Google Apps Script Setup
 
-1. Go to the [Google Cloud Console](https://console.cloud.google.com/).
-2. Create an **OAuth 2.0 Client ID** of type **Desktop application**.
-3. Download the JSON file and rename it to `google_credentials.json` in the `data/` folder.
+Bolletta Sync doesn't call the Google APIs directly: it sends each invoice to a Google Apps Script web app, which runs as your Google account and writes to Drive and Tasks. The script lives in `apps_script/`.
 
-No redirect URIs need to be configured.
+1. Go to [script.google.com](https://script.google.com/) and create a new project (e.g. *Bolletta Sync*).
+2. In **Project Settings**, enable **Show "appsscript.json" manifest file in editor**.
+3. Replace the content of `Code.gs` and `appsscript.json` with the files in `apps_script/`. The manifest enables the **Tasks** advanced service.
+4. In **Project Settings → Script Properties**, add a property `SECRET` with a long random value (e.g. `openssl rand -hex 32`).
+5. Click **Deploy → New deployment**, select type **Web app**, with *Execute as: Me* and *Who has access: Anyone*. Authorize the requested Drive and Tasks permissions.
+6. Copy the web app URL (ending in `/exec`) into `APPS_SCRIPT_URL`, and the secret into `APPS_SCRIPT_SECRET`.
+
+Requests without the right secret are rejected by the script. When you change the script, use **Deploy → Manage deployments → Edit → New version** to keep the same URL.
+
+On startup the service pings the web app and logs a warning if it can't be reached or the secret is wrong.
+
+#### Migrating from the Google OAuth setup
+
+Previous versions used an OAuth client in a Google Cloud project. After deploying the script and setting the two variables above, `data/google_credentials.json` and `data/google_token.json` are no longer used and can be deleted. Files and tasks already created are detected, so they won't be duplicated.
 
 ## Usage
 
@@ -101,17 +115,6 @@ uv run fastapi dev bolletta_sync/main.py
 ```
 
 The service will be available at `http://localhost:8000`.
-
-### Google Authentication Flow
-
-Before running a sync, you must authorize the application with Google:
-
-1. Open the dashboard at `http://localhost:8000`.
-2. If not yet authenticated, a Google authorization URL will appear on the page — click it.
-3. Complete the Google login process. Google will redirect you to `http://localhost/?code=...`.
-4. Copy the `code` value from that URL.
-5. Paste the code into the form on the dashboard and click **Authorize**.
-6. A `google_token.json` file will be saved in the `data/` folder for future sessions.
 
 ### Scheduling
 
@@ -129,10 +132,9 @@ With an empty body, all providers are synced for the last `SYNC_DAYS_OFFSET` day
 
 If `BASIC_AUTH_USERNAME` and `BASIC_AUTH_PASSWORD` are set, all API endpoints require authentication via session cookie (browser) or HTTP Basic Auth (API clients / Swagger).
 
-- **GET `/`**: Check API status, version, Google authentication state, whether a sync is currently running (`sync_in_progress`), and the details of the last synchronization.
+- **GET `/`**: Check API status, version, whether the Apps Script web app is configured (`apps_script_configured`), whether a sync is currently running (`sync_in_progress`), and the details of the last synchronization.
 - **GET `/providers`**: List supported providers.
-- **POST `/auth/token`**: Exchange a Google authorization code for a token. Submitted by the dashboard form as `application/x-www-form-urlencoded` (field `code`); redirects back to `/` on success.
-- **POST `/sync`**: Trigger a synchronization process in the background. Returns a 200 status code once the process has been taken over by the server, or **409** if a sync is already running — only one sync may run at a time.
+- **POST `/sync`**: Trigger a synchronization process in the background. Returns a 200 status code once the process has been taken over by the server, **503** if the Apps Script web app is not configured, or **409** if a sync is already running — only one sync may run at a time.
 
   **Request Body Example**:
   ```json
@@ -165,8 +167,10 @@ The report in `data/last_sync.json` is **merged** with the previous one instead 
 
 ## Project Structure
 
-- `bolletta_sync/main.py`: FastAPI application, OAuth2 routes, and entry point.
-- `bolletta_sync/sync.py`: Main logic for orchestration and Google credential management.
+- `bolletta_sync/main.py`: FastAPI application and entry point.
+- `bolletta_sync/sync.py`: Main logic for orchestration.
+- `bolletta_sync/apps_script.py`: Client for the Apps Script web app.
 - `bolletta_sync/providers/`: contains individual scrapers for each utility provider.
   - `base_provider.py`: Abstract class with shared Google Drive/Tasks logic.
-- `data/`: contains Google credentials, token files, and the `last_sync.json` report.
+- `apps_script/`: Google Apps Script web app that writes to Google Drive and Google Tasks.
+- `data/`: contains the `last_sync.json` report.

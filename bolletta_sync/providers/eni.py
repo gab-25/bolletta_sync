@@ -4,6 +4,7 @@ from datetime import date, datetime
 import requests
 from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
 
+from bolletta_sync.apps_script import AppsScriptClient
 from bolletta_sync.captcha import apply_recaptcha_token, solve_recaptcha_v2
 from bolletta_sync.providers.base_provider import BaseProvider, Invoice
 
@@ -13,8 +14,8 @@ NAVIGATION_TIMEOUT = 60_000
 
 
 class Eni(BaseProvider):
-    def __init__(self, google_credentials, page: Page):
-        super().__init__(google_credentials, page, "eni")
+    def __init__(self, apps_script: AppsScriptClient, page: Page):
+        super().__init__(apps_script, page, "eni")
         self.account_code = None
 
     async def _login_eni(self):

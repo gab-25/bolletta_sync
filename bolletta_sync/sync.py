@@ -4,13 +4,11 @@ import logging
 import os
 from datetime import date, datetime
 from enum import Enum
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Tuple
 
-from google.auth.transport.requests import Request as AuthRequest
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from playwright.async_api import async_playwright, Browser
 
+from bolletta_sync.apps_script import AppsScriptClient
 from bolletta_sync.providers.base_provider import Invoice
 from bolletta_sync.providers.eni import Eni
 from bolletta_sync.providers.fastweb import Fastweb
@@ -19,10 +17,7 @@ from bolletta_sync.providers.umbra_acque import UmbraAcque
 
 logger = logging.getLogger(__name__)
 
-# Paths and Scopes
-google_auth_scopes = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/tasks"]
-google_credentials_file = "./data/google_credentials.json"
-google_token_file = "./data/google_token.json"
+# Paths
 last_sync_file = "./data/last_sync.json"
 
 
@@ -51,56 +46,6 @@ class Provider(Enum):
     UMBRA_ACQUE = "umbra_acque"
 
 
-def get_google_flow() -> InstalledAppFlow:
-    """
-    Creates a Google OAuth flow instance for a Desktop (installed) application.
-    The redirect_uri is fixed to http://localhost as required by desktop clients.
-    """
-    if not os.path.exists(google_credentials_file):
-        raise FileNotFoundError(f"Google credentials file not found at {google_credentials_file}")
-
-    return InstalledAppFlow.from_client_secrets_file(
-        google_credentials_file,
-        scopes=google_auth_scopes,
-        redirect_uri="http://localhost",
-    )
-
-
-async def get_google_credentials() -> Optional[Credentials]:
-    """
-    Loads Google credentials from the token file.
-    Refreshes the credentials if they are expired.
-    Returns None if no token exists.
-    """
-    if os.path.exists(google_token_file):
-        google_credentials = Credentials.from_authorized_user_file(google_token_file, google_auth_scopes)
-    else:
-        logger.info("Google token file not found.")
-        return None
-
-    if google_credentials:
-        await refresh_google_credentials(google_credentials)
-
-    if not google_credentials.valid:
-        return None
-
-    return google_credentials
-
-
-async def refresh_google_credentials(google_credentials: Credentials, force: bool = False):
-    """
-    Refreshes the Google credentials if they are expired or if force is True.
-    """
-    if force or google_credentials.expired:
-        logger.info("Refreshing Google credentials")
-        try:
-            await asyncio.to_thread(google_credentials.refresh, AuthRequest())
-            with open(google_token_file, "w") as token:
-                token.write(google_credentials.to_json())
-        except Exception as e:
-            logger.error(f"Failed to refresh Google credentials: {e}")
-
-
 DEFAULT_MAX_RETRIES = 3
 
 
@@ -111,12 +56,12 @@ class Sync:
 
     def __init__(
         self,
-        google_credentials: Credentials,
+        apps_script: AppsScriptClient,
         providers: List[Provider],
         date_range: Tuple[date, date],
         max_retries: int = DEFAULT_MAX_RETRIES,
     ) -> None:
-        self._google_credentials = google_credentials
+        self._apps_script = apps_script
         self._providers = providers
         self._date_range = date_range
         self._max_retries = max_retries
@@ -128,13 +73,13 @@ class Sync:
         instance = None
 
         if provider == Provider.FASTWEB:
-            instance = Fastweb(self._google_credentials, page)
+            instance = Fastweb(self._apps_script, page)
         elif provider == Provider.FASTEWEB_ENERGIA:
-            instance = FastwebEnergia(self._google_credentials, page)
+            instance = FastwebEnergia(self._apps_script, page)
         elif provider == Provider.ENI:
-            instance = Eni(self._google_credentials, page)
+            instance = Eni(self._apps_script, page)
         elif provider == Provider.UMBRA_ACQUE:
-            instance = UmbraAcque(self._google_credentials, page)
+            instance = UmbraAcque(self._apps_script, page)
 
         if instance is None:
             await page.close()
@@ -217,8 +162,6 @@ class Sync:
     async def run(self, headless: bool = True) -> Dict[str, Any]:
         """Run syncs invoices for the given providers and returns a summary of the results."""
         results = {}
-
-        await refresh_google_credentials(self._google_credentials, force=True)
 
         async with async_playwright() as playwright:
             browser = await playwright.chromium.launch(headless=headless)

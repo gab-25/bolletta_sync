@@ -16,16 +16,16 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, model_validator
 from dotenv import load_dotenv
 
+from bolletta_sync.apps_script import AppsScriptClient, AppsScriptError
 from bolletta_sync.sync import (
     Provider,
     Sync,
-    get_google_credentials,
-    get_google_flow,
-    google_token_file,
     read_last_sync,
 )
 
 load_dotenv()
+
+APPS_SCRIPT = AppsScriptClient.from_env()
 
 DEV_MODE = os.getenv("DEV_MODE") == "true"
 
@@ -79,13 +79,15 @@ async def get_basic_auth(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # noqa: D103
-    # Perform Google authentication check on startup
-    logger.info("Initializing Google credentials...")
-    google_credentials = await get_google_credentials()
-    if google_credentials:
-        logger.info("Google credentials initialized successfully")
+    # Check that the Apps Script web app is reachable and accepts the secret
+    if APPS_SCRIPT is None:
+        logger.warning("APPS_SCRIPT_URL/APPS_SCRIPT_SECRET not set. Sync is disabled.")
     else:
-        logger.warning("Google credentials not found or expired. Please visit /auth/login")
+        try:
+            await APPS_SCRIPT.call("ping")
+            logger.info("Apps Script web app reachable")
+        except AppsScriptError as e:
+            logger.warning(f"Apps Script web app check failed: {e}")
 
     if not BASIC_AUTH_USERNAME or not BASIC_AUTH_PASSWORD:
         logger.warning("BASIC_AUTH_USERNAME/BASIC_AUTH_PASSWORD not set. Security is disabled.")
@@ -165,25 +167,13 @@ class SyncResponse(BaseModel):
 @app.get("/", dependencies=[Depends(get_basic_auth)])
 async def root(
     request: Request,
-    auth_error: bool = False,
     sync_started: bool = False,
     sync_busy: bool = False,
 ):
     """
     Return the API status and version.
     """
-    google_credentials = await get_google_credentials()
-    authenticated = google_credentials is not None
-
-    auth_url = None
-    if not authenticated:
-        try:
-            flow = get_google_flow()
-            auth_url, _ = flow.authorization_url(
-                access_type="offline", include_granted_scopes="true", prompt="consent"
-            )
-        except Exception as e:
-            logger.warning(f"Could not generate auth URL: {e}")
+    apps_script_configured = APPS_SCRIPT is not None
 
     last_sync = read_last_sync() or None
 
@@ -196,12 +186,10 @@ async def root(
             request,
             "index.html",
             {
-                "authenticated": authenticated,
-                "auth_url": auth_url,
+                "apps_script_configured": apps_script_configured,
                 "last_sync": last_sync,
                 "version": app.version,
                 "security_enabled": security_enabled,
-                "auth_error": auth_error,
                 "sync_started": sync_started,
                 "sync_busy": sync_busy,
                 "sync_in_progress": is_sync_running(),
@@ -211,7 +199,7 @@ async def root(
     return {
         "message": "Bolletta Sync API is running",
         "version": app.version,
-        "authenticated": authenticated,
+        "apps_script_configured": apps_script_configured,
         "sync_in_progress": is_sync_running(),
         "last_sync": last_sync,
     }
@@ -251,31 +239,6 @@ async def logout():
     resp = RedirectResponse(url="/login", status_code=303)
     resp.delete_cookie("session")
     return resp
-
-
-
-@app.post("/auth/token", dependencies=[Depends(get_basic_auth)])
-async def auth_token(code: str = Form(...)):
-    """
-    Exchanges the authorization code for tokens, saves them, and redirects
-    back to the dashboard.
-    The code is the value of the 'code' query parameter from the redirect URL
-    (http://localhost/?code=...) after authorizing on Google.
-    """
-    try:
-        flow = get_google_flow()
-        flow.fetch_token(code=code)
-    except Exception as e:
-        logger.error(f"Failed to exchange auth code: {e}")
-        return RedirectResponse(url="/?auth_error=1", status_code=303)
-
-    credentials = flow.credentials
-    with open(google_token_file, "w") as token:
-        token.write(credentials.to_json())
-
-    logger.info("Google credentials successfully obtained and saved")
-
-    return RedirectResponse(url="/", status_code=303)
 
 
 @app.get("/providers", dependencies=[Depends(get_basic_auth)])
@@ -320,13 +283,12 @@ async def run_sync_task(
 ):
     """Background task to run the sync process. Releases the sync slot when done."""
     try:
-        google_credentials = await get_google_credentials()
-        if not google_credentials:
-            logger.error("Background sync failed: Not authenticated with Google")
+        if APPS_SCRIPT is None:
+            logger.error("Background sync failed: Apps Script web app not configured")
             return
 
         await Sync(
-            google_credentials=google_credentials,
+            apps_script=APPS_SCRIPT,
             providers=providers,
             date_range=(start_date, end_date),
         ).run(headless=not DEV_MODE)
@@ -342,11 +304,10 @@ async def trigger_sync(request: SyncRequest, background_tasks: BackgroundTasks):
     """
     Triggers the synchronization process in the background.
     """
-    # Refresh and get credentials
-    google_credentials = await get_google_credentials()
-
-    if not google_credentials:
-        raise HTTPException(status_code=401, detail="Not authenticated with Google. Please visit /auth/login")
+    if APPS_SCRIPT is None:
+        raise HTTPException(
+            status_code=503, detail="Apps Script web app not configured. Set APPS_SCRIPT_URL and APPS_SCRIPT_SECRET"
+        )
 
     if not try_start_sync():
         raise HTTPException(status_code=409, detail="A sync is already running")
@@ -403,9 +364,8 @@ async def retry_failed_sync(background_tasks: BackgroundTasks):
     if not providers:
         return RedirectResponse(url="/", status_code=303)
 
-    google_credentials = await get_google_credentials()
-    if not google_credentials:
-        logger.error("Retry rejected: Not authenticated with Google")
+    if APPS_SCRIPT is None:
+        logger.error("Retry rejected: Apps Script web app not configured")
         return RedirectResponse(url="/", status_code=303)
 
     if not try_start_sync():
