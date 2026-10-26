@@ -4,12 +4,13 @@ from datetime import date
 import requests
 from playwright.async_api import Page
 
+from bolletta_sync.apps_script import AppsScriptClient
 from bolletta_sync.providers.base_provider import BaseProvider, Invoice
 
 
 class FastwebEnergia(BaseProvider):
-    def __init__(self, google_credentials, page: Page):
-        super().__init__(google_credentials, page, "fastweb_energia")
+    def __init__(self, apps_script: AppsScriptClient, page: Page):
+        super().__init__(apps_script, page, "fastweb_energia")
         # Optional comma-separated supply codes (e.g. luce and gas). When not set
         # we fall back to [None], which keeps the previous single-supply behaviour.
         supply_env = os.getenv("FASTWEB_ENERGIA_SUPPLY_CODE")
